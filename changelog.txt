@@ -1,0 +1,26 @@
+Semantic Workbench - ChangeLog
+
+=========================================================================
+2010-09-01, v 1.1
+
+Upgraded prepackaged Pellet library to 2.8.1 which fixed an issue with 
+the OWL reasoner throwing a ConcurrentModificationException
+
+Added several features:
+
+File|Save Assertions Text
+Allows the text in the assertions text area to be written to a file.  
+This allows a set of assertions that contain an error and cannot be 
+used to generate a model to be saved to a file.
+
+File|Save Model
+Was previously File|Save.  Saves the current model to a file.
+
+Edit|Insert Prefixes
+Inserts comon prefixes (for RDF/XML, N3, Turtle) in the assertions text 
+area or (for SPARQL) in the SPARQL Query text area.
+
+Help|About
+Displays verson information for the program as well as the loaded 
+Jena and Pellet libraries.
+=========================================================================

@@ -1,0 +1,240 @@
+<project name="${projectName}" default="dist" basedir=".">
+  <!-- project properties are in build.properties -->
+  <property file="build.properties"/>
+
+  <!-- set calculated properties for this build -->
+  <property name="srcJavaDir" value="${srcDir}/Java"/>
+  <property name="instDir" value="${genDir}/Instrumented"/>
+
+  <!-- location of instrumented Jars for code coverage testing -->
+  <property name="testingDir" value="${genDir}/test"/>
+  <property name="testingJAR" value="${genDir}/bin/test-${jarName}.jar"/>
+  <property name="unitTestResultsDir" value="${genDir}/test/unit-test-results"/>
+  <property name="coberturaDataFile" value="${testingDir}/cobertura.ser"/>
+  <property name="codeCoverageReportDir" value="${testingDir}/code-coverage-report"/>
+
+  <!-- Build the Classpath -->
+  <path id="project.class.path">
+    <fileset dir="${thirdPartyLibsDir}">
+      <include name="**/*.jar"/>
+    </fileset>
+    <fileset dir="${envLibsDir}">
+      <include name="**/*.jar"/>
+    </fileset>
+  </path>
+
+  <!-- Setup for Cobertura - code coverage evaluation tool -->
+  <path id="cobertura.classpath">
+    <fileset dir="${cobertura.dir}">
+      <include name="cobertura.jar"/>
+      <include name="lib/**/*.jar"/>
+    </fileset>
+  </path>
+  <taskdef classpathref="cobertura.classpath" resource="tasks.properties"/>
+
+  <!-- clean out previously built project files -->
+  <target name="clean">
+    <!-- Delete the ${buildDir}, ${distDir} and ${javadocDir} directory trees -->
+    <delete dir="${buildDir}"/>
+    <delete dir="${distDir}"/>
+    <delete dir="${genDir}"/>
+    <delete dir="${javadocDir}"/>
+  </target>
+
+  <!-- setup steps required before compilation -->
+  <target name="init">
+    <!-- Create the time stamp -->
+    <tstamp/>
+    <!-- Create the build directory structure used by compile -->
+    <mkdir dir="${buildDir}"/>
+    <mkdir dir="${distDir}"/>
+    <mkdir dir="${genDir}/bin"/>
+  </target>
+
+  <!-- compilation -->
+  <target name="compile" depends="init">
+    <!-- Compile the java code from ${srcJavaDir} into ${buildDir} -->
+    <javac srcdir="${srcJavaDir}" destdir="${buildDir}" debug="Yes" source="${sourceVersion}">
+      <classpath refid="project.class.path"/>
+    </javac>
+  </target>
+
+  <!-- make project deployment file(s) -->
+  <target name="dist" depends="distjar"/>
+
+  <!-- make project JAR file -->
+  <target name="distjar" depends="compile">
+    <jar jarfile="${distDir}/${jarName}.jar" manifest="${srcDir}/${manifestForJAR}">
+      <fileset dir="${buildDir}">
+        <include name="**/*.class"/>
+        <exclude name="**/*Test.class"/>
+        <exclude name="**/test/*"/>
+      </fileset>
+      <fileset dir="AddlClasses"/>
+    </jar>
+  </target>
+
+  <!-- build test-jar file -->
+  <target name="test-jar" depends="compile">
+    <jar destfile="${testingJAR}">
+      <fileset dir="${buildDir}">
+        <include name="**/*.class"/>
+      </fileset>
+    </jar>
+  </target>
+
+  <!-- run the Application -->
+  <target name="run" depends="distjar">
+    <java classname="${runClass}" fork="true">
+      <classpath>
+<!--        <pathelement path="${buildDir}"/> -->
+        <pathelement path="${distDir}/${jarName}.jar"/>
+        <path refid="project.class.path"/>
+      </classpath>
+    </java>
+  </target>
+
+  <!-- run the Instrumented Application -->
+  <target name="runInst" depends="code-coverage-setup">
+    <java classname="${runClass}" fork="true">
+      <!--
+        Specify the name of the coverage data file to use.
+        The value specified below is the default.
+      -->
+      <sysproperty key="net.sourceforge.cobertura.datafile" file="${coberturaDataFile}"/>
+
+      <!--
+        Note the classpath order: instrumented classes are placed before the
+        original (uninstrumented) classes.  This is important.
+      -->
+      <classpath location="${instDir}"/>
+      <classpath location="${buildDir}"/>
+
+      <!--
+        The instrumented classes reference classes used by the
+        Cobertura runtime, so Cobertura and its dependencies
+        must be on your classpath.
+      -->
+      <classpath refid="cobertura.classpath"/>
+
+      <classpath>
+        <path refid="project.class.path"/>
+      </classpath>
+    </java>
+
+    <antcall target="code-coverage-report"/>
+  </target>
+
+  <!-- Setup cobertura instrumented test classes -->
+  <target name="code-coverage-setup" depends="compile">
+    <delete file="${coberturaDataFile}"/>
+    <delete dir="${instDir}"/>
+    <mkdir dir="${testingDir}"/>
+    <!-- build instrumented class files for code coverage testing -->
+    <cobertura-instrument todir="${instDir}" datafile="${coberturaDataFile}">
+      <!--    <ignore regex="org.apache.log4j.*" /> -->
+      <fileset dir="${buildDir}">
+        <include name="**/*.class"/>
+        <exclude name="**/*Test.class"/>
+        <exclude name="**/test/*"/>
+      </fileset>
+    </cobertura-instrument>
+
+    <!-- Copy over additional files that belong in the class hierarchy (images, etc) -->
+    <copy todir="${instDir}">
+      <fileset dir="AddlClasses">
+        <include name="**/*"/>
+      </fileset>
+    </copy>
+
+  </target>
+
+  <!-- Generate code coverage report -->
+  <target name="code-coverage-report">
+    <delete dir="${codeCoverageReportDir}"/>
+    <cobertura-report format="html" datafile="${coberturaDataFile}" destdir="${codeCoverageReportDir}">
+      <fileset dir="${srcJavaDir}">
+        <include name="**/*.java"/>
+        <exclude name="**/*Test.java"/>
+        <exclude name="**/test/*"/>
+      </fileset>
+    </cobertura-report>
+  </target>
+
+  <!-- Run to setup instrumented class files, run unit tests and generate coverage reports -->
+  <target name="test" depends="unittest, code-coverage-report"/>
+
+  <!-- unit testing -->
+  <target name="unittest" depends="code-coverage-setup">
+    <!-- clean the test-results folder -->
+    <delete dir="${unitTestResultsDir}"/>
+    <!-- create the test-results folder -->
+    <mkdir dir="${unitTestResultsDir}"/>
+    <!-- invoke junit -->
+    <junit printSummary="on" fork="true" haltonfailure="no" failureproperty="tests.failed">
+      <!--
+        Specify the name of the coverage data file to use.
+        The value specified below is the default.
+      -->
+      <sysproperty key="net.sourceforge.cobertura.datafile" file="${coberturaDataFile}"/>
+
+      <!--
+        Note the classpath order: instrumented classes are before the
+        original (uninstrumented) classes.  This is important.
+      -->
+      <classpath location="${instDir}"/>
+      <classpath location="${buildDir}"/>
+
+      <!--
+        The instrumented classes reference classes used by the
+        Cobertura runtime, so Cobertura and its dependencies
+        must be on your classpath.
+      -->
+      <classpath refid="cobertura.classpath"/>
+
+      <!-- set log4j.configuration system property -->
+      <jvmarg value="-Dlog4j.configuration=file:${testLoggingProperties}"/>
+
+      <!-- define the classpath -->
+      <classpath refid="project.class.path"/>
+
+      <!-- define the formatter -->
+      <formatter type="xml"/>
+
+      <!-- setup for batch-testing -->
+      <batchtest fork="yes" todir="${unitTestResultsDir}">
+        <fileset dir="${buildDir}">
+          <include name="**/*Test.class"/>
+        </fileset>
+      </batchtest>
+    </junit>
+
+    <junitreport todir="${unitTestResultsDir}">
+      <fileset dir="${unitTestResultsDir}">
+        <include name="TEST-*.xml" />
+      </fileset>
+      <report format="frames" todir="${unitTestResultsDir}" />
+    </junitreport>
+
+    <fail if="tests.failed">
+      tests.failed=${tests.failed}
+      ***********************************************************
+      ***********************************************************
+      ****  One or more tests failed!  Check the output ...  ****
+      ***********************************************************
+      ***********************************************************
+    </fail>
+  </target>
+
+  <!-- javadoc creation -->
+  <target name="javadoc">
+    <!-- build javadoc for project -->
+    <!-- Create the javadoc dir -->
+    <mkdir dir="${javadocDir}"/>
+    <!-- Create the javadoc -->
+    <javadoc source="${sourceVersion}" sourcepath="${srcJavaDir}" packagenames="${javadocClasses}" destdir="${javadocDir}" Windowtitle="${javadocTitle}" Header="&lt;a href=&quot;http://monead.com/&quot; target=&quot;_top&quot;&gt;David S. Read&lt;/a&gt;" Footer="&lt;a href=&quot;http://monead.com/&quot;&gt;Monead&lt;/a&gt;" Private="yes">
+      <classpath refid="project.class.path"/>
+    </javadoc>
+  </target>
+
+</project>
