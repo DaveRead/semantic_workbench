@@ -13,9 +13,21 @@ This program is intended to explore features of the Jena framework as well as
 leverage the pellet reasoner.  This first generation tool has some severe
 limitations that will be resolved over time.  Longer term this project may
 serve as a springboard for a Java-based Semantic Workbench that is being 
-kicked-off on SourceForge.
+kicked-off on GitHub.
 
-To execute the program using ant, just execute the "run" target, 
+=====
+Setup
+=====
+Before running the program you will to download Cobertura if you don't already
+have it.
+
+You can download the latest version: http://cobertura.sourceforge.net/download.html
+
+Once you've downloaded it, you will need to either place it in
+semantic_workbench/cobertura or have a symbolic link at semantic_workbench/cobertura
+that points to the directory where you've placed the cobertura.jar file.
+
+Then, to execute the program using ant, just execute the "run" target, 
 e.g. ant run
 
 =====

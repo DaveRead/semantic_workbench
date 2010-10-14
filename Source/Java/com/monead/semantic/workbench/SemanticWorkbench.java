@@ -1,4 +1,4 @@
-﻿package com.monead.semantic.workbench;
+package com.monead.semantic.workbench;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
