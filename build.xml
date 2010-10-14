@@ -49,6 +49,8 @@
     <mkdir dir="${buildDir}"/>
     <mkdir dir="${distDir}"/>
     <mkdir dir="${genDir}/bin"/>
+  	<mkdir dir="${addlClassesDir}"/>
+  	<mkdir dir="${envLibsDir}"/>
   </target>
 
   <!-- compilation -->
