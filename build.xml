@@ -18,9 +18,9 @@
     <fileset dir="${thirdPartyLibsDir}">
       <include name="**/*.jar"/>
     </fileset>
-    <fileset dir="${envLibsDir}">
+<!--    <fileset dir="${envLibsDir}">
       <include name="**/*.jar"/>
-    </fileset>
+    </fileset> -->
     <fileset dir="${testLibsDir}">
     	<include name="**/*.jar"/>
     </fileset>
@@ -46,8 +46,8 @@
     <mkdir dir="${distDir}"/>
     <mkdir dir="${genDir}/bin"/>
   	<mkdir dir="${addlClassesDir}"/>
-  	<mkdir dir="${envLibsDir}"/>
-	<mkdir dir="${testLibsDir}"/>
+<!--  	<mkdir dir="${envLibsDir}"/>
+	<mkdir dir="${testLibsDir}"/> -->
   </target>
 
   <!-- compilation -->
