@@ -102,7 +102,7 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 	/**
 	 * The version identifier
 	 */
-	public final static String VERSION = "1.2";
+	public final static String VERSION = "1.3";
 
 	/**
 	 * Serial UID to keep environment happy
@@ -813,6 +813,9 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 		sparqlServiceUrl.setEditable(true);
 		sparqlServiceUrl.addItem("Local Model");
 		sparqlServiceUrl.addItem("http://DBpedia.org/sparql");
+		sparqlServiceUrl.addItem("http://api.talis.com/stores/bbc-backstage/services/sparql");
+		sparqlServiceUrl.addItem("http://dbtune.org/bbc/programmes/sparql/");
+		sparqlServiceUrl.addItem("http://api.talis.com/stores/space/services/sparql");
 		sparqlServiceUrl.addItem("http://lod.openlinksw.com/sparql/");
 		sparqlServiceUrl.addItem("http://semantic.data.gov/sparql");
 		sparqlServiceUrl
@@ -1926,13 +1929,19 @@ class SparqlTableModel extends AbstractTableModel {
 	 *            A Jena query result set
 	 */
 	public void setupModel(ResultSet results) {
+		List<String> columns;
 		rows.clear();
 		columnLabels.clear();
 
+		columns = results.getResultVars();
+		for (String colName : columns) {
+			columnLabels.add(colName);
+		}
+		
 		while (results.hasNext()) {
 			QuerySolution solution = results.next();
 
-			if (columnLabels.size() == 0) {
+/*			if (columnLabels.size() == 0) {
 				Iterator<String> names;
 				names = solution.varNames();
 				while (names.hasNext()) {
@@ -1940,12 +1949,14 @@ class SparqlTableModel extends AbstractTableModel {
 					LOGGER.debug("Added column label: "
 							+ columnLabels.get(columnLabels.size() - 1));
 				}
-			}
+			} */
 
 			List<String> row = new ArrayList<String>();
 
 			for (String var : columnLabels) {
-				if (solution.get(var).isLiteral()) {
+				if (solution.get(var) == null) {
+					row.add("");
+				} else if (solution.get(var).isLiteral()) {
 					row.add("Lit: " + solution.getLiteral(var));
 				} else {
 					row.add(solution.getResource(var).toString());
