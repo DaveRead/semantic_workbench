@@ -55,6 +55,7 @@ import com.hp.hpl.jena.query.QueryExecutionFactory;
 import com.hp.hpl.jena.query.QueryFactory;
 import com.hp.hpl.jena.query.QuerySolution;
 import com.hp.hpl.jena.query.ResultSet;
+import com.hp.hpl.jena.query.Syntax;
 import com.hp.hpl.jena.rdf.model.Model;
 import com.hp.hpl.jena.rdf.model.ModelFactory;
 import com.hp.hpl.jena.rdf.model.Property;
@@ -102,7 +103,7 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 	/**
 	 * The version identifier
 	 */
-	public final static String VERSION = "1.3";
+	public final static String VERSION = "1.4";
 
 	/**
 	 * Serial UID to keep environment happy
@@ -768,6 +769,9 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 				&& ontModel != null) {
 			runSparql.setEnabled(true);
 			LOGGER.debug("Enabled Run SPARQL Button (" + sparqlService + ")");
+		} else if (enable && sparqlInput.getText().toLowerCase().indexOf("from") > -1) {
+			runSparql.setEnabled(true);
+			LOGGER.debug("Enabled Run SPARQL Button due to 'from' clause (" + sparqlService + ")");
 		} else {
 			runSparql.setEnabled(false);
 			LOGGER.debug("Disabled Run SPARQL Button (" + sparqlService + ")");
@@ -811,7 +815,7 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 
 		sparqlServiceUrl = new JComboBox();
 		sparqlServiceUrl.setEditable(true);
-		sparqlServiceUrl.addItem("Local Model");
+		sparqlServiceUrl.addItem("Local Model or Using FROM Clause");
 		sparqlServiceUrl.addItem("http://DBpedia.org/sparql");
 		sparqlServiceUrl.addItem("http://api.talis.com/stores/bbc-backstage/services/sparql");
 		sparqlServiceUrl.addItem("http://dbtune.org/bbc/programmes/sparql/");
@@ -820,7 +824,7 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 		sparqlServiceUrl.addItem("http://semantic.data.gov/sparql");
 		sparqlServiceUrl
 				.addItem("http://www4.wiwiss.fu-berlin.de/gutendata/sparql");
-
+		sparqlServiceUrl.addItem("http://semantic.monead.com/vehicleinfo/mileage");
 		sparqlServiceUrl.addActionListener(new SparqlModelChoiceListener());
 		sparqlServiceUrl.getEditor().getEditorComponent().addKeyListener(
 				new UserInputListener());
@@ -1000,12 +1004,17 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 		String queryString = sparqlInput.getText().trim();
 
 		// Create a Query instance
-		Query query = QueryFactory.create(queryString);
+		Query query = QueryFactory.create(queryString, Syntax.syntaxARQ);
 
+		LOGGER.debug("Query Graph URIs? " + query.getGraphURIs());
+		
 		serviceUrl = ((String) sparqlServiceUrl.getSelectedItem()).trim();
 
 		// Execute the query and obtain results
-		if (sparqlServiceUrl.getSelectedIndex() == 0
+		if (query.getGraphURIs() != null && query.getGraphURIs().size() > 0) {
+			LOGGER.debug("Query has Graph URIs: " + query.getGraphURIs().size());
+			qe = QueryExecutionFactory.create(query);
+		} else if (sparqlServiceUrl.getSelectedIndex() == 0
 				|| serviceUrl.length() == 0) {
 			qe = QueryExecutionFactory.create(query, ontModel);
 		} else {

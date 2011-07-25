@@ -1,6 +1,11 @@
 Semantic Workbench - ChangeLog
 
 =========================================================================
+2011-07-25, v 1.4
+
+Added support for external and federated queries
+
+=========================================================================
 2010-09-01, v 1.1
 
 Upgraded prepackaged Pellet library to 2.8.1 which fixed an issue with 
