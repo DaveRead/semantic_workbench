@@ -292,6 +292,11 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 	private JComboBox sparqlServiceUrl;
 
 	/**
+	 * The default graph URI (optional)
+	 */
+	private JTextField defaultGraphUri;
+	
+	/**
 	 * SPARQL execution results
 	 */
 	private JTable sparqlResultsTable;
@@ -520,7 +525,7 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 		labelPanel = new JPanel();
 		labelPanel.setLayout(new BorderLayout());
 		gridPanel = new JPanel();
-		gridPanel.setLayout(new GridLayout(2, 1));
+		gridPanel.setLayout(new GridLayout(0, 1));
 
 		innerGridPanel = new JPanel();
 		innerGridPanel.setLayout(new GridLayout(1, 2));
@@ -537,6 +542,12 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 		flowPanel.add(sparqlServiceUrl);
 		gridPanel.add(flowPanel);
 
+		flowPanel = new JPanel();
+		flowPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+		flowPanel.add(new JLabel("Default Graph URI: "));
+		flowPanel.add(defaultGraphUri);
+		gridPanel.add(flowPanel);
+		
 		labelPanel.add(gridPanel, BorderLayout.NORTH);
 		labelPanel.add(new JScrollPane(sparqlInput), BorderLayout.CENTER);
 		sparqlPanel.add(labelPanel);
@@ -825,10 +836,14 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 		sparqlServiceUrl
 				.addItem("http://www4.wiwiss.fu-berlin.de/gutendata/sparql");
 		sparqlServiceUrl.addItem("http://semantic.monead.com/vehicleinfo/mileage");
+		sparqlServiceUrl.addItem("http://sw.unime.it:8890/sparql");
 		sparqlServiceUrl.addActionListener(new SparqlModelChoiceListener());
 		sparqlServiceUrl.getEditor().getEditorComponent().addKeyListener(
 				new UserInputListener());
 
+		defaultGraphUri = new JTextField();
+		defaultGraphUri.setColumns(30);
+		
 		// A basic default query
 		sparqlInput.setText("select ?s ?p ?o where { ?s ?p ?o }");
 
@@ -1018,7 +1033,13 @@ public class SemanticWorkbench extends JFrame implements Runnable, WindowListene
 				|| serviceUrl.length() == 0) {
 			qe = QueryExecutionFactory.create(query, ontModel);
 		} else {
-			qe = QueryExecutionFactory.sparqlService(serviceUrl, query);
+			String defaultGraphUriText = defaultGraphUri.getText().trim();
+			
+			if (defaultGraphUriText.length() > 0) {
+				qe = QueryExecutionFactory.sparqlService(serviceUrl, query, defaultGraphUriText);
+			} else {
+				qe = QueryExecutionFactory.sparqlService(serviceUrl, query);
+			}
 		}
 		resultSet = qe.execSelect();
 
