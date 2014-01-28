@@ -70,6 +70,10 @@
         <exclude name="**/test/*"/>
       </fileset>
       <fileset dir="AddlClasses"/>
+      <fileset dir="${srcDir}/Java">
+      	<include name="**/*"/>
+      	<exclude name="**/*.java"/>
+      </fileset>
     </jar>
   </target>
 
