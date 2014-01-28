@@ -65,7 +65,7 @@
   <target name="distjar" depends="compile">
     <jar jarfile="${distDir}/${jarName}.jar" manifest="${srcDir}/${manifestForJAR}">
       <fileset dir="${buildDir}">
-        <include name="**/*.class"/>
+        <include name="**/*"/>
         <exclude name="**/*Test.class"/>
         <exclude name="**/test/*"/>
       </fileset>
@@ -84,7 +84,7 @@
 
   <!-- run the Application -->
   <target name="run" depends="distjar">
-    <java classname="${runClass}" fork="true">
+    <java classname="${runClass}" fork="true" maxmemory="2g">
       <classpath>
 <!--        <pathelement path="${buildDir}"/> -->
         <pathelement path="${distDir}/${jarName}.jar"/>
