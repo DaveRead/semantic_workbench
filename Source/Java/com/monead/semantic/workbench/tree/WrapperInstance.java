@@ -27,14 +27,9 @@ package com.monead.semantic.workbench.tree;
  * @author David Read
  *
  */
-public class WrapperInstance {
-  String label;
+public class WrapperInstance extends Wrapper {
 
-  public WrapperInstance(String label) {
-    this.label = label;
-  }
-
-  public String toString() {
-    return label;
+  public WrapperInstance(String localName, String uri) {
+    super(localName, uri);
   }
 }

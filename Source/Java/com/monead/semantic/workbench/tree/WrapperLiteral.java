@@ -27,14 +27,18 @@ package com.monead.semantic.workbench.tree;
  * @author David Read
  *
  */
-public class WrapperLiteral {
-  String label;
-
-  public WrapperLiteral(String label) {
-    this.label = label;
+public class WrapperLiteral extends Wrapper {
+  public WrapperLiteral(String value) {
+    super(value, null);
   }
 
+  /**
+   * Specialized since a literal value doesn't have a URI.
+   * 
+   * The value is placed in the localname attribute of the 
+   * Wrapper.
+   */
   public String toString() {
-    return label;
+    return getLocalName();
   }
 }

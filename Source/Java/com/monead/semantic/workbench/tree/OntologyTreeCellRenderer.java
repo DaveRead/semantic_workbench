@@ -69,12 +69,12 @@ public class OntologyTreeCellRenderer extends DefaultTreeCellRenderer {
             ((DefaultMutableTreeNode) value).getUserObject();
 
     if (object instanceof WrapperLiteral) {
-      setIcon(ImageLibrary.instance().getIcon(
+      setIcon(ImageLibrary.instance().getImageIcon(
           ImageLibrary.ICON_TREE_LITERAL_BOXED));
       setToolTipText("This is a literal value");
       hasSpecializedIcon = true;
     } else if (object instanceof WrapperClass) {
-      setIcon(ImageLibrary.instance().getIcon(
+      setIcon(ImageLibrary.instance().getImageIcon(
           leaf ? ImageLibrary.ICON_TREE_CLASS_NOINSTANCES_BOXED
               : ImageLibrary.ICON_TREE_CLASS_BOXED));
       // setLeafIcon(ImageLibrary.instance().getIcon(
@@ -83,7 +83,7 @@ public class OntologyTreeCellRenderer extends DefaultTreeCellRenderer {
       hasSpecializedIcon = true;
 
     } else if (object instanceof WrapperInstance) {
-      setIcon(ImageLibrary.instance().getIcon(
+      setIcon(ImageLibrary.instance().getImageIcon(
           leaf ? ImageLibrary.ICON_TREE_INSTANCE_NOPROPERTIES_BOXED
               : ImageLibrary.ICON_TREE_INSTANCE_BOXED));
       // setLeafIcon(ImageLibrary.instance().getIcon(
@@ -92,13 +92,13 @@ public class OntologyTreeCellRenderer extends DefaultTreeCellRenderer {
       hasSpecializedIcon = true;
 
     } else if (object instanceof WrapperDataProperty) {
-      setIcon(ImageLibrary.instance().getIcon(
+      setIcon(ImageLibrary.instance().getImageIcon(
           ImageLibrary.ICON_TREE_PROPERTY_DATA_BOXED));
       setToolTipText("This is a data property");
       hasSpecializedIcon = true;
 
     } else if (object instanceof WrapperObjectProperty) {
-      setIcon(ImageLibrary.instance().getIcon(
+      setIcon(ImageLibrary.instance().getImageIcon(
           ImageLibrary.ICON_TREE_PROPERTY_OBJECT_BOXED));
       setToolTipText("This is an object property");
       hasSpecializedIcon = true;

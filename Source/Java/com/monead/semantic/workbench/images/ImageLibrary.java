@@ -1,5 +1,7 @@
 package com.monead.semantic.workbench.images;
 
+import java.awt.Image;
+
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 
@@ -18,6 +20,7 @@ public class ImageLibrary {
    * this class.
    */
   private final static String[] ICON_FILES = {
+      "SWBinitialed.Icon.32x32.png", "SWB.Icon.16x16.png",
       "TreeNode-Class.png", "TreeNode-Class-NoInstances.png",
       "TreeNode-Class-Boxed.png", "TreeNode-Class-NoInstances-Boxed.png",
       "TreeNode-DataProperty.png", "TreeNode-DataProperty-Boxed.png",
@@ -30,44 +33,49 @@ public class ImageLibrary {
   };
 
   /**
+   * Constants for program icons
+   */
+  public final static int ICON_SEMANTIC_WORKBENCH_32X32 = 0;
+  public final static int ICON_SEMANTIC_WORKBENCH_16X16 = 1;
+  /**
    * Constants for ontology class-related tree node icons
    */
-  public final static int ICON_TREE_CLASS = 0;
-  public final static int ICON_TREE_CLASS_NOINSTANCES = 1;
-  public final static int ICON_TREE_CLASS_BOXED = 2;
-  public final static int ICON_TREE_CLASS_NOINSTANCES_BOXED = 3;
+  public final static int ICON_TREE_CLASS = 2;
+  public final static int ICON_TREE_CLASS_NOINSTANCES = 3;
+  public final static int ICON_TREE_CLASS_BOXED = 4;
+  public final static int ICON_TREE_CLASS_NOINSTANCES_BOXED = 5;
 
   /**
    * Constants for ontology property-related tree node icons
    */
-  public final static int ICON_TREE_PROPERTY_DATA = 4;
-  public final static int ICON_TREE_PROPERTY_DATA_BOXED = 5;
+  public final static int ICON_TREE_PROPERTY_DATA = 6;
+  public final static int ICON_TREE_PROPERTY_DATA_BOXED = 7;
 
   /**
    * Constants for ontology individual-related tree node icons
    */
-  public final static int ICON_TREE_INSTANCE = 6;
-  public final static int ICON_TREE_INSTANCE_NOPROPERTIES = 7;
-  public final static int ICON_TREE_INSTANCE_BOXED = 8;
-  public final static int ICON_TREE_INSTANCE_NOPROPERTIES_BOXED = 9;
+  public final static int ICON_TREE_INSTANCE = 8;
+  public final static int ICON_TREE_INSTANCE_NOPROPERTIES = 9;
+  public final static int ICON_TREE_INSTANCE_BOXED = 10;
+  public final static int ICON_TREE_INSTANCE_NOPROPERTIES_BOXED = 11;
 
   /**
    * Constants for ontology literal-related tree node icons
    */
-  public final static int ICON_TREE_LITERAL = 10;
-  public final static int ICON_TREE_LITERAL_BOXED = 11;
+  public final static int ICON_TREE_LITERAL = 12;
+  public final static int ICON_TREE_LITERAL_BOXED = 13;
 
   /**
    * Constants for ontology object property-related tree node icons
    */
-  public final static int ICON_TREE_PROPERTY_OBJECT = 12;
-  public final static int ICON_TREE_PROPERTY_OBJECT_BOXED = 13;
+  public final static int ICON_TREE_PROPERTY_OBJECT = 14;
+  public final static int ICON_TREE_PROPERTY_OBJECT_BOXED = 15;
 
   /**
    * Constants for ontology property-related tree node icons
    */
-  public final static int ICON_TREE_PROPERTY = 14;
-  public final static int ICON_TREE_PROPERTY_BOXED = 15;
+  public final static int ICON_TREE_PROPERTY = 16;
+  public final static int ICON_TREE_PROPERTY_BOXED = 17;
 
   /**
    * Logger Instance
@@ -77,7 +85,7 @@ public class ImageLibrary {
   /**
    * A cache of loaded images
    */
-  private Icon[] loadedIcons = new Icon[ICON_FILES.length];
+  private ImageIcon[] loadedIcons = new ImageIcon[ICON_FILES.length];
 
   /**
    * Singleton instance of this class
@@ -107,8 +115,8 @@ public class ImageLibrary {
    * 
    * @return The Icon instance or null if it cannot be loaded.
    */
-  public Icon getIcon(int iconIndex) {
-    Icon theIcon = null;
+  public ImageIcon getImageIcon(int iconIndex) {
+    ImageIcon theIcon = null;
 
     if (iconIndex < ICON_FILES.length) {
       if ((theIcon = loadedIcons[iconIndex]) == null) {
@@ -119,7 +127,6 @@ public class ImageLibrary {
         } catch (Throwable throwable) {
           LOGGER.warn("Unable to load image number: " + iconIndex, throwable);
         }
-
       }
     }
 

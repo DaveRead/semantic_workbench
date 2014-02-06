@@ -11,11 +11,15 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Frame;
 import java.awt.GridLayout;
+import java.awt.Image;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
@@ -30,8 +34,12 @@ import java.io.Reader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.io.Writer;
+import java.rmi.server.ExportException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,20 +69,27 @@ import com.hp.hpl.jena.query.QueryFactory;
 import com.hp.hpl.jena.query.QuerySolution;
 import com.hp.hpl.jena.query.ResultSet;
 import com.hp.hpl.jena.query.Syntax;
+import com.hp.hpl.jena.rdf.model.Literal;
 import com.hp.hpl.jena.rdf.model.Model;
 import com.hp.hpl.jena.rdf.model.ModelFactory;
 import com.hp.hpl.jena.rdf.model.Property;
 import com.hp.hpl.jena.rdf.model.RDFNode;
 import com.hp.hpl.jena.rdf.model.Statement;
 import com.hp.hpl.jena.rdf.model.StmtIterator;
+import com.hp.hpl.jena.tdb.sys.SetupTDB;
 import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.monead.semantic.workbench.images.ImageLibrary;
+import com.monead.semantic.workbench.tree.IndividualComparator;
+import com.monead.semantic.workbench.tree.OntClassComparator;
 import com.monead.semantic.workbench.tree.OntologyTreeCellRenderer;
+import com.monead.semantic.workbench.tree.StatementComparator;
+import com.monead.semantic.workbench.tree.Wrapper;
 import com.monead.semantic.workbench.tree.WrapperClass;
 import com.monead.semantic.workbench.tree.WrapperDataProperty;
 import com.monead.semantic.workbench.tree.WrapperInstance;
 import com.monead.semantic.workbench.tree.WrapperLiteral;
 import com.monead.semantic.workbench.tree.WrapperObjectProperty;
+import com.sun.xml.internal.ws.model.WrapperParameter;
 
 /**
  * SemanticWorkbench - A GUI to input assertions, run an inferencing engine and
@@ -109,19 +124,21 @@ import com.monead.semantic.workbench.tree.WrapperObjectProperty;
  * 
  *         TODO Add support for SPARQL queries that use the model and URLs
  * 
- *         TODO Store settings in properties file
+ *         TODO Add support to read/write SPARQL queries from/to files
+ * 
+ *         TODO Add support to write SPARQL results to a file
  */
 public class SemanticWorkbench extends JFrame implements Runnable,
     WindowListener {
   /**
    * The version identifier
    */
-  public final static String VERSION = "1.5.2";
+  public final static String VERSION = "1.7.0";
 
   /**
-   * Serial UID to keep environment happy
+   * Serial UID
    */
-  private final static long serialVersionUID = 19991231;
+  private final static long serialVersionUID = 20140205;
 
   /**
    * The set of formats that can be loaded. These are defined by Jena
@@ -173,7 +190,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * The set of reasoning levels that will be compared.
    */
   protected final static String[] REASONING_LEVELS = { "None", "RDFS",
-      "OWL Lite (Jena)", "OWL DL (Jena)", "OWL (Pellet)" };
+      "OWL Trans (Jena)", "OWL Lite (Jena)" }; // , "OWL (Pellet)" };
 
   /**
    * Constant used if a value cannot be found in an array
@@ -194,6 +211,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private final static String PROP_FONT_COLOR = "FontColor";
   private final static String PROP_PREFIX_SKIP_CLASS = "TreeClassToSkip_";
   private final static String PROP_PREFIX_SKIP_PREDICATE = "TreePredicateToSkip_";
+  private final static String PROP_REASONING_LEVEL = "ReasoningLevel";
+  private final static String PROP_INPUT_LANGUAGE = "InputFormat";
+  private final static String PROP_PREFIX_RECENT_FILE = "RecentFile_";
+  private final static String PROP_ENFORCE_FILTERS_IN_TREE_VIEW = "EnforceTreeViewFilters";
+  private final static String PROP_DISPLAY_ANONYMOUS_NODES_IN_TREE_VIEW = "ShowAnonymousNodesInTreeView";
 
   /**
    * Configuration properties
@@ -211,25 +233,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private Map<String, String> predicatesToSkipInTree;
 
   /**
-   * Default classes to skip when creating the tree view. Overridden by settings
-   * in the properties file.
-   */
-  private final static String[] defaultClassesToSkipInTree = {
-      "http://www.w3.org/2002/07/owl#Thing",
-  };
-
-  /**
-   * Default predicates to skip when creating the tree view. Overridden by
-   * settings in the properties file.
-   */
-  private final static String[] defaultPredicatesToSkipInTree = {
-      "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
-      "http://www.w3.org/2002/07/owl#differentFrom",
-      "http://www.w3.org/2002/07/owl#propertyDisjointWith",
-      "http://www.w3.org/2002/07/owl#sameAs"
-  };
-
-  /**
    * The name (and path if necessary) to the ontology being loaded
    */
   private File rdfFile;
@@ -245,11 +248,24 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private OntModel ontModelNoInference;
 
   /**
+   * The file menu - retained since the menu items include
+   * the list of recently opened files which changes dynamically
+   */
+  private JMenu fileMenu;
+
+  /**
    * File open menu item
    * 
    * Used to load an ontology in to the assertions text area
    */
   private JMenuItem fileOpen;
+
+  /**
+   * File open recent file menu item
+   * 
+   * Created dynamically from the list of recent files
+   */
+  private JMenuItem[] fileOpenRecentFile;
 
   /**
    * File save menu item
@@ -333,6 +349,27 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private JMenuItem setupFont;
 
   /**
+   * Set whether the filters for classes and properties are enabled
+   */
+  private JCheckBoxMenuItem filterEnableFilters;
+
+  /**
+   * Set whether anonymous classes, individuals and properties are shown in the
+   * tree
+   */
+  private JCheckBoxMenuItem filterShowAnonymousNodes;
+
+  /**
+   * Edit the list of currently filtered classes
+   */
+  private JMenuItem filterEditFilteredClasses;
+
+  /**
+   * Edit the list of currently filtered properties
+   */
+  private JMenuItem filterEditFilteredProperties;
+
+  /**
    * View the about dialog
    */
   private JMenuItem helpAbout;
@@ -409,12 +446,26 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private JTree ontModelTree;
 
+  /**
+   * Flag to indicate whether alternate images for the tree view have been
+   * located
+   */
   private boolean replaceTreeImages = false;
 
   /**
    * The last directory where a file was opened or saved
    */
   private File lastDirectoryUsed;
+
+  /**
+   * Recently opened and saved files
+   */
+  private List<File> recentFiles = new ArrayList<File>();
+
+  /**
+   * Maximum number of previous file names to retain
+   */
+  private final static int MAX_PREVIOUS_FILES_TO_STORE = 10;
 
   /**
    * Is the reasoner running (e.g. active thread)
@@ -436,6 +487,23 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private boolean isBuildingAssertionsList;
 
+  private boolean isExpandingEntireTree;
+  private boolean isCollapsingEntireTree;
+
+  /**
+   * Is the model being written to a file
+   */
+  private boolean isExportingModel;
+
+  /**
+   * The file that the model is being written to
+   */
+  private File modelExportFile;
+
+  private boolean isTreeInSyncWithModel;
+  private boolean areInferencesInSyncWithModel;
+  private boolean areSparqlResultsInSyncWithModel;
+
   /**
    * Set up the application's UI
    */
@@ -445,6 +513,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     addWindowListener(this);
     setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
     setTitle("Semantic Workbench");
+    setIcons();
 
     loadProperties();
 
@@ -456,6 +525,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     sizing();
     setStatus("");
     setVisible(true);
+  }
+
+  private void setIcons() {
+    List<Image> icons = new ArrayList<Image>();
+
+    icons.add(ImageLibrary.instance()
+        .getImageIcon(ImageLibrary.ICON_SEMANTIC_WORKBENCH_32X32).getImage());
+    icons.add(ImageLibrary.instance()
+        .getImageIcon(ImageLibrary.ICON_SEMANTIC_WORKBENCH_16X16).getImage());
+
+    setIconImages(icons);
   }
 
   /**
@@ -531,6 +611,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     LOGGER.debug("Last directory used from properties file: "
         + lastDirectoryUsed.getAbsolutePath());
 
+    value = properties.getProperty(PROP_INPUT_LANGUAGE, "?");
+    language.setSelectedItem(value);
+
+    value = properties.getProperty(PROP_REASONING_LEVEL, "?");
+    reasoningLevel.setSelectedItem(value);
+
     value = properties.getProperty(PROP_OUTPUT_FORMAT, "?");
     for (JCheckBoxMenuItem outputLanguage : setupOutputAssertionLanguage) {
       if (outputLanguage.getText().equalsIgnoreCase(value)) {
@@ -556,9 +642,69 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .getProperty(PROP_FLAG_LITERALS_IN_RESULTS, "Y").toUpperCase()
         .startsWith("Y"));
 
+    filterEnableFilters.setSelected(properties
+        .getProperty(PROP_ENFORCE_FILTERS_IN_TREE_VIEW, "Y").toUpperCase()
+        .startsWith("Y"));
+
+    filterShowAnonymousNodes.setSelected(properties
+        .getProperty(PROP_DISPLAY_ANONYMOUS_NODES_IN_TREE_VIEW, "N")
+        .toUpperCase().startsWith("Y"));
+
     setFont(getFontFromProperties(), getColorFromProperties());
 
     extractSkipObjectsFromProperties();
+
+    extractRecentFilesFromProperties();
+  }
+
+  private void extractRecentFilesFromProperties() {
+    List<String> prefixNames = new ArrayList<String>();
+
+    /**
+     * Find any keys for prefious files
+     */
+    for (Object key : properties.keySet()) {
+      if (key.toString().startsWith(PROP_PREFIX_RECENT_FILE)) {
+        prefixNames.add(key.toString());
+      }
+    }
+
+    // Want the files in order from most recent
+    Collections.sort(prefixNames);
+
+    // Only keep up to MAX_PREVIOUS_FILES_TO_STORE values
+    for (int index = 0; index < MAX_PREVIOUS_FILES_TO_STORE
+        && index < prefixNames.size(); index++) {
+      recentFiles.add(new File(properties.getProperty(prefixNames.get(index))));
+    }
+
+    setupFileMenu();
+  }
+
+  /**
+   * Add a file to the collection of recent fules
+   * 
+   * @param file
+   *          The file to be added to the collection
+   */
+  private void addRecentFile(File file) {
+    int matchAt;
+
+    matchAt = recentFiles.indexOf(file);
+
+    if (matchAt == -1) {
+      recentFiles.add(0, file);
+    } else if (matchAt > 0) {
+      recentFiles.remove(matchAt);
+      recentFiles.add(0, file);
+    }
+
+    // Assure only MAX_PREVIOUS_FILES_TO_STORE entries are stored
+    while (recentFiles.size() > MAX_PREVIOUS_FILES_TO_STORE) {
+      recentFiles.remove(recentFiles.size() - 1);
+    }
+
+    setupFileMenu();
   }
 
   /**
@@ -577,42 +723,51 @@ public class SemanticWorkbench extends JFrame implements Runnable,
             .put(properties.getProperty(key.toString()), "");
       }
     }
-
-    if (classesToSkipInTree.size() == 0) {
-      addDefaultClassesToSkipInTree();
-    }
-
-    if (predicatesToSkipInTree.size() == 0) {
-      addDefaultPredicatesToSkipInTree();
-    }
   }
 
   /**
-   * Add the default classes to be skipped to the configuration properties.
+   * Add a class or property to be filtered from the tree view when it is
+   * created
+   * 
+   * @param wrapper
+   *          An instance of a wrapper for an ontology class or property
    */
-  private void addDefaultClassesToSkipInTree() {
-    int classNumber = 0;
-
-    for (String classToSkipInTree : defaultClassesToSkipInTree) {
-      ++classNumber;
-      properties.put(PROP_PREFIX_SKIP_CLASS + classNumber,
-          classToSkipInTree);
-      classesToSkipInTree.put(classToSkipInTree, "");
+  private void addToFilter(Wrapper wrapper) {
+    if (wrapper instanceof WrapperClass) {
+      classesToSkipInTree.put(wrapper.getUri(), "");
+      LOGGER.debug("Added class to skip in tree view: " + wrapper.getUri());
+    } else if (wrapper instanceof WrapperDataProperty
+        || wrapper instanceof WrapperObjectProperty) {
+      LOGGER.debug("Added property to skip in tree view: " + wrapper.getUri());
+      predicatesToSkipInTree.put(wrapper.getUri(), "");
     }
-
   }
 
-  /**
-   * Add the default predicates (properties) to be skipped to the configuration
-   * properties.
-   */
-  private void addDefaultPredicatesToSkipInTree() {
-    int propNumber = 0;
-    for (String predicateToSkipInTree : defaultPredicatesToSkipInTree) {
-      ++propNumber;
-      properties.put(PROP_PREFIX_SKIP_PREDICATE + propNumber,
-          predicateToSkipInTree);
-      predicatesToSkipInTree.put(predicateToSkipInTree, "");
+  private void editFilterMap(Map<String, String> filterMap) {
+    // TODO add editing feature
+    List<String> filteredItems = new ArrayList<String>(filterMap.keySet());
+    int[] selectedIndices;
+
+    Collections.sort(filteredItems);
+    JList jListOfItems = new JList(
+        filteredItems.toArray(new String[filteredItems.size()]));
+    JOptionPane.showMessageDialog(this, jListOfItems, "Select Items to Remove",
+        JOptionPane.QUESTION_MESSAGE);
+
+    selectedIndices = jListOfItems.getSelectedIndices();
+    if (selectedIndices.length > 0) {
+      LOGGER.debug("Items to remove from the filter map: "
+          + Arrays.toString(jListOfItems.getSelectedValues()));
+      LOGGER
+          .trace("Filtered list size before removal: " + filteredItems.size());
+      for (int index = 0; index < selectedIndices.length; ++index) {
+        LOGGER.trace("Remove filtered item: "
+            + filteredItems.get(selectedIndices[index]));
+        filterMap.remove(filteredItems.get(selectedIndices[index]));
+      }
+      LOGGER.trace("Filtered list size after removal: " + filteredItems.size());
+    } else {
+      LOGGER.debug("No items removed from filter map");
     }
   }
 
@@ -621,9 +776,29 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void saveProperties() {
     Writer writer = null;
+    List<String> propertiesToBeRemoved = new ArrayList<String>();
+
+    // Remove the recent files entries. They will be recreated from the new list
+    removePrefixedProperties(PROP_PREFIX_RECENT_FILE);
+
+    updatePropertiesWithClassesToSkipInTree();
+    updatePropertiesWithPredicatesToSkipInTree();
+
+    // Add the set of recent files
+    for (int index = 0; index < MAX_PREVIOUS_FILES_TO_STORE
+        && index < recentFiles.size(); ++index) {
+      properties.put(PROP_PREFIX_RECENT_FILE + index, recentFiles.get(index)
+          .getAbsolutePath());
+    }
 
     properties.setProperty(PROP_LAST_DIRECTORY,
         lastDirectoryUsed.getAbsolutePath());
+
+    properties.setProperty(PROP_INPUT_LANGUAGE, language.getSelectedItem()
+        .toString());
+
+    properties.setProperty(PROP_REASONING_LEVEL, reasoningLevel
+        .getSelectedItem().toString());
 
     for (JCheckBoxMenuItem outputLanguage : setupOutputAssertionLanguage) {
       if (outputLanguage.isSelected()) {
@@ -646,6 +821,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     properties.setProperty(PROP_FLAG_LITERALS_IN_RESULTS,
         setupOutputFlagLiteralValues.isSelected() ? "Yes" : "No");
 
+    properties.setProperty(PROP_ENFORCE_FILTERS_IN_TREE_VIEW,
+        filterEnableFilters.isSelected() ? "Yes" : "No");
+    properties.setProperty(PROP_DISPLAY_ANONYMOUS_NODES_IN_TREE_VIEW,
+        filterShowAnonymousNodes.isSelected() ? "Yes" : "No");
+
     try {
       writer = new FileWriter(getPropertiesDirectory() + "/"
           + PROPERTIES_FILE_NAME, false);
@@ -663,6 +843,61 @@ public class SemanticWorkbench extends JFrame implements Runnable,
               + PROPERTIES_FILE_NAME, throwable);
         }
       }
+    }
+  }
+
+  /**
+   * Remove all the properties in the properties collection that begin with the
+   * supplied property key prefix.
+   * 
+   * @param prefix
+   *          The property prefix for entries to be removed
+   */
+  private void removePrefixedProperties(String prefix) {
+    List<String> propertiesToBeRemoved = new ArrayList<String>();
+
+    for (Object key : properties.keySet()) {
+      if (key.toString().startsWith(prefix)) {
+        propertiesToBeRemoved.add(key.toString());
+      }
+    }
+    for (String propertyToRemove : propertiesToBeRemoved) {
+      properties.remove(propertyToRemove);
+    }
+  }
+
+  /**
+   * Add the classes to be skipped to the configuration properties.
+   */
+  private void updatePropertiesWithClassesToSkipInTree() {
+    int classNumber = 0;
+
+    // Remove the existing class entries. They will be recreated from the new
+    // list
+    removePrefixedProperties(PROP_PREFIX_SKIP_CLASS);
+
+    for (String classToSkipInTree : classesToSkipInTree.keySet()) {
+      ++classNumber;
+      properties.put(PROP_PREFIX_SKIP_CLASS + classNumber,
+          classToSkipInTree);
+      classesToSkipInTree.put(classToSkipInTree, "");
+    }
+  }
+
+  /**
+   * Add the predicates (properties) to be skipped to the configuration
+   * properties.
+   */
+  private void updatePropertiesWithPredicatesToSkipInTree() {
+    int propNumber = 0;
+
+    // Remove the existing predicate entries. They will be recreated from the
+    // new list
+    for (String predicateToSkipInTree : predicatesToSkipInTree.keySet()) {
+      ++propNumber;
+      properties.put(PROP_PREFIX_SKIP_PREDICATE + propNumber,
+          predicateToSkipInTree);
+      predicatesToSkipInTree.put(predicateToSkipInTree, "");
     }
   }
 
@@ -714,7 +949,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     // Inferences
     tabbedPane.add("Inferences", setupInferencesPanel());
 
-    //
+    // Tree view
     tabbedPane.add("Tree View", setupTreePanel());
 
     // SPARQL
@@ -998,21 +1233,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
-   * Setup the frame's menus
+   * Configures the file menu. Called at startup
+   * and whenever a file is opened or saved since
+   * the list of recent files is presented on the
+   * file menu.
    */
-  private void setupMenus() {
-    JMenuBar menuBar;
-    JMenu menu;
-    ButtonGroup buttonGroup;
-
-    menuBar = new JMenuBar();
-    setJMenuBar(menuBar);
-
-    menu = new JMenu("File");
-    menu.setMnemonic(KeyEvent.VK_F);
-    menu.getAccessibleContext().setAccessibleDescription(
-        "Menu items related to file access");
-    menuBar.add(menu);
+  private void setupFileMenu() {
+    fileMenu.removeAll();
 
     fileOpen = new JMenuItem("Open");
     fileOpen.setMnemonic('O');
@@ -1022,9 +1249,26 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     fileOpen.getAccessibleContext().setAccessibleDescription(
         "Open an ontology file");
     fileOpen.addActionListener(new FileOpenListener());
-    menu.add(fileOpen);
+    fileMenu.add(fileOpen);
 
-    menu.addSeparator();
+    fileMenu.addSeparator();
+
+    // Create menu options to open recently accessed ontology files
+    fileOpenRecentFile = new JMenuItem[recentFiles.size()];
+    for (int recentFileNumber = 0; recentFileNumber < recentFiles.size(); ++recentFileNumber) {
+      fileOpenRecentFile[recentFileNumber] = new JMenuItem(recentFiles.get(
+          recentFileNumber).getName());
+      fileOpenRecentFile[recentFileNumber].getAccessibleContext()
+          .setAccessibleDescription(
+              "Open the file: " + recentFiles.get(recentFileNumber).getName());
+      fileOpenRecentFile[recentFileNumber]
+          .addActionListener(new RecentOntologyFileOpenListener());
+      fileMenu.add(fileOpenRecentFile[recentFileNumber]);
+    }
+
+    if (fileOpenRecentFile.length > 0) {
+      fileMenu.addSeparator();
+    }
 
     fileSave = new JMenuItem("Save Assertions Text");
     fileSave.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S,
@@ -1033,7 +1277,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     fileSave.getAccessibleContext().setAccessibleDescription(
         "Write the assertions to a file");
     fileSave.addActionListener(new FileSaveListener());
-    menu.add(fileSave);
+    fileMenu.add(fileSave);
 
     fileSaveSerializedModel = new JMenuItem("Save Model");
     fileSaveSerializedModel.setAccelerator(KeyStroke.getKeyStroke(
@@ -1044,9 +1288,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
             "Write an ontology file from the current model");
     fileSaveSerializedModel
         .addActionListener(new ModelSerializerListener());
-    menu.add(fileSaveSerializedModel);
+    fileMenu.add(fileSaveSerializedModel);
 
-    menu.addSeparator();
+    fileMenu.addSeparator();
 
     fileExit = new JMenuItem("Exit");
     fileExit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_X,
@@ -1055,7 +1299,29 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     fileExit.getAccessibleContext().setAccessibleDescription(
         "Exit the application");
     fileExit.addActionListener(new EndApplicationListener());
-    menu.add(fileExit);
+    fileMenu.add(fileExit);
+
+  }
+
+  /**
+   * Setup the frame's menus
+   */
+  private void setupMenus() {
+    JMenuBar menuBar;
+    JMenu menu;
+    ButtonGroup buttonGroup;
+
+    menuBar = new JMenuBar();
+    setJMenuBar(menuBar);
+
+    // File menu
+    fileMenu = new JMenu("File");
+    fileMenu.setMnemonic(KeyEvent.VK_F);
+    fileMenu.getAccessibleContext().setAccessibleDescription(
+        "Menu items related to file access");
+    menuBar.add(fileMenu);
+
+    setupFileMenu();
 
     // Edit Menu
     menu = new JMenu("Edit");
@@ -1185,6 +1451,51 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .addActionListener(new GenerateInferredTriplesListener());
     menu.add(modelListInferredTriples);
 
+    // Filters Menu
+    // private JCheckBoxMenuItem filterEnableFilters;
+    // private JCheckBoxMenuItem filterShowAnonymousNodes;
+    // private JMenuItem filterEditFilteredClasses;
+    // private JMenuItem filterEditFilteredProperties;
+
+    menu = new JMenu("Tree Filter");
+    menu.setMnemonic(KeyEvent.VK_F);
+    menu.getAccessibleContext().setAccessibleDescription(
+        "Menu items related to filtering values out of the model's tree");
+    menuBar.add(menu);
+
+    filterEnableFilters = new JCheckBoxMenuItem("Enable Filters");
+    filterEnableFilters.setSelected(true);
+    filterEnableFilters
+        .getAccessibleContext()
+        .setAccessibleDescription(
+            "Enforce the filtered list of classes and properties when creating the tree view");
+    menu.add(filterEnableFilters);
+
+    filterShowAnonymousNodes = new JCheckBoxMenuItem("Show Anonymous Nodes");
+    filterShowAnonymousNodes.setSelected(false);
+    filterShowAnonymousNodes.getAccessibleContext().setAccessibleDescription(
+        "include anonymous nodes in the tree view");
+    menu.add(filterShowAnonymousNodes);
+
+    menu.addSeparator();
+
+    filterEditFilteredClasses = new JMenuItem("Edit List of Filtered Classes");
+    filterEditFilteredClasses.getAccessibleContext().setAccessibleDescription(
+        "Present the list of filtered classes and allow them to be edited");
+    filterEditFilteredClasses
+        .addActionListener(new EditFilteredClassesListener());
+    menu.add(filterEditFilteredClasses);
+
+    filterEditFilteredProperties = new JMenuItem(
+        "Edit List of Filtered Properties");
+    filterEditFilteredProperties
+        .getAccessibleContext()
+        .setAccessibleDescription(
+            "Present the list of filtered properties and allow them to be edited");
+    filterEditFilteredProperties
+        .addActionListener(new EditFilteredPropertiesListener());
+    menu.add(filterEditFilteredProperties);
+
     // Help Menu
     menu = new JMenu("Help");
     menu.setMnemonic(KeyEvent.VK_H);
@@ -1216,6 +1527,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     assertions.setEditable(enable);
     sparqlInput.setEditable(enable);
     fileOpen.setEnabled(enable);
+
+    colorCodeTabs();
 
     // If inferencing is completed and the models are setup, enable
     // the tree view and inferred triples listing options
@@ -1261,6 +1574,54 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       runSparql.setEnabled(false);
       LOGGER.debug("Disabled Run SPARQL Button (" + sparqlService + ")");
     }
+  }
+
+  private void colorCodeTabs() {
+    Color tabNormalBgColor = tabbedPane.getBackgroundAt(0);
+
+    if (!areInferencesInSyncWithModel
+        && inferredTriples.getText().trim().length() > 0) {
+      tabbedPane.setBackgroundAt(1, Color.red);
+      tabbedPane.setToolTipTextAt(1,
+          "Results out of sync with loaded assertions");
+      inferredTriples.setBackground(Color.red);
+      inferredTriples.setForeground(Color.white);
+    } else {
+      tabbedPane.setBackgroundAt(1, tabNormalBgColor);
+      tabbedPane.setToolTipTextAt(1, "");
+      inferredTriples.setBackground(Color.red);
+      inferredTriples.setBackground(Color.white);
+      inferredTriples.setForeground(status.getForeground());
+    }
+
+    if (!isTreeInSyncWithModel
+        && !ontModelTree.getModel().isLeaf(ontModelTree.getModel().getRoot())) {
+      tabbedPane.setBackgroundAt(2, Color.red);
+      tabbedPane.setToolTipTextAt(2,
+          "Results out of sync with loaded assertions");
+      ontModelTree.setBackground(Color.red);
+      ontModelTree.setForeground(Color.white);
+    } else {
+      tabbedPane.setBackgroundAt(2, tabNormalBgColor);
+      tabbedPane.setToolTipTextAt(2, "");
+      ontModelTree.setBackground(Color.white);
+      ontModelTree.setForeground(status.getForeground());
+    }
+
+    if (!areSparqlResultsInSyncWithModel
+        && sparqlResultsTable.getRowCount() > 0) {
+      tabbedPane.setBackgroundAt(3, Color.red);
+      tabbedPane.setToolTipTextAt(3,
+          "Results out of sync with loaded assertions");
+      sparqlResultsTable.setBackground(Color.red);
+      sparqlResultsTable.setForeground(Color.white);
+    } else {
+      tabbedPane.setBackgroundAt(3, tabNormalBgColor);
+      tabbedPane.setToolTipTextAt(3, "");
+      sparqlResultsTable.setBackground(Color.white);
+      sparqlResultsTable.setForeground(status.getForeground());
+    }
+
   }
 
   /**
@@ -1326,7 +1687,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     sparqlResultsTable = new JTable(new SparqlTableModel());
 
     // Determine whether alternate tree icons exist
-    if (ImageLibrary.instance().getIcon(ImageLibrary.ICON_TREE_CLASS) != null) {
+    if (ImageLibrary.instance().getImageIcon(ImageLibrary.ICON_TREE_CLASS) != null) {
       replaceTreeImages = true;
     }
 
@@ -1334,6 +1695,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         + replaceTreeImages);
     ontModelTree = new JTree(new DefaultTreeModel(
         new DefaultMutableTreeNode("No Tree Generated")));
+
+    // TODO Add listeners to support taking actions with information in the tree
+    // TODO Mouse listener to add selected class to classesToSkipInTree
+    // TODO Mouse listener to add selected property to predicatesToSkipInTree
+    ontModelTree.addMouseListener(new OntologyModelTreeMouseListener());
 
     if (replaceTreeImages) {
       ToolTipManager.sharedInstance().registerComponent(ontModelTree);
@@ -1390,19 +1756,57 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * Expand all the nodes in the tree representation of the model
    */
-  private void expandAll() {
-    for (int row = 0; row < ontModelTree.getRowCount(); ++row) {
-      ontModelTree.expandRow(row);
+  private String expandAll() {
+    int numNodes;
+    ProgressMonitor progress;
+    DefaultMutableTreeNode root = (DefaultMutableTreeNode) ontModelTree
+        .getModel().getRoot();
+    @SuppressWarnings("rawtypes")
+    Enumeration enumerateNodes = root.breadthFirstEnumeration();
+
+    numNodes = 0;
+    while (enumerateNodes.hasMoreElements()) {
+      enumerateNodes.nextElement();
+      ++numNodes;
     }
+
+    LOGGER.debug("Expanding tree with row count: " + numNodes);
+
+    progress = new ProgressMonitor(this,
+        "Expanding Tree Nodes", "Starting node expansion", 0, numNodes);
+
+    progress.setMillisToPopup(2000);
+
+    setStatus("Expanding all tree nodes");
+
+    for (int row = 0; row < numNodes; ++row) {
+      progress.setProgress(row);
+      if (row % 1000 == 0) {
+        progress.setNote("Row " + row + " of " + numNodes);
+      }
+
+      ontModelTree.expandRow(row);
+      // ontModelTree.scrollRowToVisible(row);
+    }
+
+    progress.close();
+
+    ontModelTree.scrollRowToVisible(0);
+
+    return "Tree nodes expanded";
   }
 
   /**
    * Collapse all the nodes in the tree representation of the model
    */
-  private void collapseAll() {
-    for (int row = 0; row < ontModelTree.getRowCount(); ++row) {
+  private String collapseAll() {
+    setStatus("Collapsing all tree nodes");
+
+    for (int row = ontModelTree.getRowCount(); row > 0; --row) {
       ontModelTree.collapseRow(row);
     }
+
+    return "Tree nodes collapsed";
   }
 
   /**
@@ -1462,6 +1866,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         finalStatus = identifyInferredTriples();
       } else if (isRunSparql) {
         finalStatus = sparqlExecution();
+      } else if (isExportingModel) {
+        finalStatus = writeOntologyModel();
+      } else if (isExpandingEntireTree) {
+        finalStatus = expandAll();
+      } else if (isCollapsingEntireTree) {
+        finalStatus = collapseAll();
       } else {
         JOptionPane.showMessageDialog(this,
             "An instruction to execute a task was received\n"
@@ -1484,7 +1894,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       } else {
         setStatus("");
       }
-      isBuildingAssertionsList = isBuildingTree = isRunReasoner = isRunSparql = false;
+
+      isBuildingAssertionsList = isBuildingTree = isRunReasoner
+          = isRunSparql = isExportingModel = isExpandingEntireTree
+              = isCollapsingEntireTree = false;
     }
   }
 
@@ -1498,7 +1911,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private boolean okToRunThread() {
     boolean okToRun = !isBuildingAssertionsList && !isBuildingTree
-        && !isRunReasoner && !isRunSparql;
+        && !isRunReasoner && !isRunSparql && !isExportingModel
+        && !isExpandingEntireTree && !isCollapsingEntireTree;
 
     if (!okToRun) {
       JOptionPane.showMessageDialog(this,
@@ -1527,6 +1941,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       return "reasoning over the ontology";
     } else if (isRunSparql) {
       return "executing SPARQL query";
+    } else if (isExportingModel) {
+      return "exporting the model to a file";
+    } else if (isExpandingEntireTree) {
+      return "expanding all tree nodes";
+    } else if (isCollapsingEntireTree) {
+      return "collapsing all tree nodes";
     }
 
     return "No thread running";
@@ -1572,12 +1992,33 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
   }
 
+  private void runModelExport() {
+    if (okToRunThread()) {
+      isExportingModel = true;
+      new Thread(this).start();
+    }
+  }
+
+  private void runExpandAllTreeNodes() {
+    if (okToRunThread()) {
+      isExpandingEntireTree = true;
+      new Thread(this).start();
+    }
+  }
+
+  private void runCollapseAllTreeNodes() {
+    if (okToRunThread()) {
+      isCollapsingEntireTree = true;
+      new Thread(this).start();
+    }
+  }
+
   /**
    * Execute the steps to run the reasoner
    */
   private String reasonerExecution() {
     setStatus("Running reasoner...");
-    inferredTriples.setText("");
+    // inferredTriples.setText("");
     loadModel();
 
     return "Reasoning complete";
@@ -1593,6 +2034,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     setWaitCursor(true);
     // sparqlResults.setText("");
     numResults = callSparqlEngine();
+
+    areSparqlResultsInSyncWithModel = true;
+    colorCodeTabs();
 
     return "Number of query results: " + numResults;
   }
@@ -1774,6 +2218,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     inferredTriples.setText(writer.toString());
 
+    areInferencesInSyncWithModel = true;
+    colorCodeTabs();
+
     return "Listing of inferred triples created in " + assertionLanguage;
   }
 
@@ -1802,12 +2249,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     } else if (reasoningLevelIndex == 1) { // RDFS
       model = ModelFactory
           .createOntologyModel(OntModelSpec.OWL_DL_MEM_RDFS_INF);
-    } else if (reasoningLevelIndex == 2) { // OWL Lite (Jena)
-      model = ModelFactory
-          .createOntologyModel(OntModelSpec.OWL_LITE_MEM_TRANS_INF);
-    } else if (reasoningLevelIndex == 3) { // OWL DL (Jena)
+    } else if (reasoningLevelIndex == 2) { // OWL Trans(Jena)
       model = ModelFactory
           .createOntologyModel(OntModelSpec.OWL_DL_MEM_TRANS_INF);
+    } else if (reasoningLevelIndex == 3) { // OWL Lite (Jena)
+      model = ModelFactory
+          .createOntologyModel(OntModelSpec.OWL_DL_MEM_RULE_INF);// OWL_MEM_RULE_INF);//LITE_MEM_TRANS_INF);
+      model.setStrictMode(false);
     } else if (reasoningLevelIndex == 4) { // OWL (Pellet)
       // Reasoner reasoner = PelletReasonerFactory.theInstance().create();
       // Model infModel = ModelFactory.createInfModel(reasoner, ModelFactory
@@ -1824,13 +2272,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
-   * Obtain a text file containing a set of assertions. Load the assertions
-   * into the ontology model.
+   * Load the assertions into the ontology model.
    */
   private void loadModel() {
     String modelFormat;
 
     modelFormat = null;
+
+    isTreeInSyncWithModel = areInferencesInSyncWithModel
+        = areSparqlResultsInSyncWithModel = false;
 
     if (language.getSelectedIndex() == 0) {
       for (String format : FORMATS) {
@@ -1854,6 +2304,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     if (modelFormat == null) {
+      ontModel = null;
+      ontModelNoInference = null;
+
       if (language.getSelectedIndex() == 0) {
         throw new IllegalStateException(
             "The assertions cannot be loaded using known languages.\nTried: "
@@ -1917,21 +2370,25 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *      TODO aggregate items from duplicate nodes
    */
   private String createTreeFromModel() {
+    String messagePrefix = "Creating the tree view";
     DefaultMutableTreeNode treeTopNode;
     DefaultMutableTreeNode classesNode;
     DefaultMutableTreeNode oneClassNode;
     DefaultMutableTreeNode oneIndividualNode;
     DefaultMutableTreeNode onePropertyNode;
-    OntClass ontClass;
-    Individual individual;
-    Statement statement;
+    List<OntClass> ontClasses;
+    List<Individual> individuals;
+    List<Statement> statements;
     Property property;
     RDFNode rdfNode;
+    Literal literal;
     ExtendedIterator<OntClass> classesIterator;
     ExtendedIterator<Individual> individualsIterator;
     StmtIterator stmtIterator;
+    int classNumber;
+    ProgressMonitor progress;
 
-    setStatus("Creating the tree view of the model...");
+    setStatus(messagePrefix);
     setWaitCursor(true);
 
     treeTopNode = new DefaultMutableTreeNode("Model");
@@ -1943,29 +2400,59 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     if (LOGGER.isTraceEnabled()) {
       LOGGER.trace("Building list of classes in the model");
     }
+
     classesIterator = ontModel.listClasses();
+
+    setStatus(messagePrefix + "... obtaining the list of classes");
+
     if (LOGGER.isTraceEnabled()) {
       LOGGER.trace("List of classes built");
     }
+    ontClasses = new ArrayList<OntClass>();
     while (classesIterator.hasNext()) {
-      ontClass = classesIterator.next();
+      ontClasses.add(classesIterator.next());
+    }
+    progress = new ProgressMonitor(this, "Create the model tree view",
+        "Setting up the class list", 0, ontClasses.size());
+    Collections.sort(ontClasses, new OntClassComparator());
+    if (LOGGER.isTraceEnabled()) {
+      LOGGER.trace("List of classes sorted");
+    }
+
+    classNumber = 0;
+    for (OntClass ontClass : ontClasses) {
+      setStatus(messagePrefix + " for class " + ontClass);
+      progress.setNote(ontClass.toString());
+      progress.setProgress(++classNumber);
 
       // Check whether class is to be skipped
-      if (classesToSkipInTree.get(ontClass.getURI()) != null) {
+      if (LOGGER.isTraceEnabled()) {
+        LOGGER.trace("Check if class to be skipped: " + ontClass.getURI());
+        for (String skipClass : classesToSkipInTree.keySet()) {
+          LOGGER.trace("Class to skip: " + skipClass + "  equal? "
+              + (skipClass.equals(ontClass.getURI())));
+        }
+      }
+      if (filterEnableFilters.isSelected()
+          && classesToSkipInTree.get(ontClass.getURI()) != null) {
         LOGGER.debug("Class to be skipped: " + ontClass.getURI());
         continue;
       }
 
+      // TODO make skipping anonymous classes an option
+      // Skipping anonymous classes
       if (ontClass.isAnon()) {
-        // oneClassNode = new DefaultMutableTreeNode("Anonymous Class ("
-        // + ontClass.getId().getLabelString() + ")");
-        LOGGER.debug("Skip anonymous class: "
-            + ontClass.getId().getLabelString());
-        continue;
+        if (filterShowAnonymousNodes.isSelected()) {
+          oneClassNode = new DefaultMutableTreeNode(new WrapperClass(ontClass
+              .getId().getLabelString(), "[Anonymous class]"));
+        } else {
+          LOGGER.debug("Skip anonymous class: "
+              + ontClass.getId().getLabelString());
+          continue;
+        }
       } else {
         oneClassNode = new DefaultMutableTreeNode(new WrapperClass(ontClass
-            .getLocalName()
-            + " (" + ontClass.getURI() + ")"));
+            .getLocalName(), ontClass.getURI()));
         LOGGER.debug("Add class node: " + ontClass
             .getLocalName()
             + " (" + ontClass.getURI() + ")");
@@ -1978,20 +2465,39 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
       individualsIterator = ontModel.listIndividuals(ontClass);
       if (LOGGER.isTraceEnabled()) {
-        LOGGER.trace("List of individuals built for " + ontClass.getURI());
+        LOGGER.trace("List of individuals built for " + ontClass.getURI()
+            + " Is there at least one individual? "
+            + individualsIterator.hasNext());
       }
+      individuals = new ArrayList<Individual>();
       while (individualsIterator.hasNext()) {
-        individual = individualsIterator.next();
+        individuals.add(individualsIterator.next());
+      }
+      Collections.sort(individuals, new IndividualComparator());
+      if (LOGGER.isTraceEnabled()) {
+        LOGGER.trace("List of individuals sorted for " + ontClass.getURI());
+      }
+
+      for (Individual individual : individuals) {
+        if (LOGGER.isTraceEnabled()) {
+          LOGGER.trace("Next individual: " + individual.getLocalName());
+        }
+
+        // TODO make skipping anonymous individuals an option
+        // Skip anonymous individuals
         if (individual.isAnon()) {
-          continue;
-          // oneIndividualNode = new DefaultMutableTreeNode(
-          // "Anonymous Individual ("
-          // + individual.getId().getLabelString() + ")");
+          if (filterShowAnonymousNodes.isSelected()) {
+            oneIndividualNode = new DefaultMutableTreeNode(new WrapperInstance(
+                individual.getId().getLabelString(), "[Anonymous individual]"));
+          } else {
+            LOGGER.debug("Skip anonymous individual: "
+                + individual.getId().getLabelString());
+            continue;
+          }
         } else {
           oneIndividualNode = new DefaultMutableTreeNode(new WrapperInstance(
               individual
-                  .getLocalName()
-                  + " (" + individual.getURI() + ")"));
+                  .getLocalName(), individual.getURI()));
         }
         oneClassNode.add(oneIndividualNode);
 
@@ -2003,34 +2509,55 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         if (LOGGER.isTraceEnabled()) {
           LOGGER.trace("List of statements built for " + individual.getURI());
         }
+        statements = new ArrayList<Statement>();
         while (stmtIterator.hasNext()) {
-          statement = stmtIterator.next();
+          statements.add(stmtIterator.next());
+        }
+        Collections.sort(statements, new StatementComparator());
+        if (LOGGER.isTraceEnabled()) {
+          LOGGER.trace("List of statements sorted for " + ontClass.getURI());
+        }
+
+        for (Statement statement : statements) {
           property = statement.getPredicate();
 
           // Check whether predicate is to be skipped
-          if (predicatesToSkipInTree.get(property.getURI()) != null) {
+          if (filterEnableFilters.isSelected()
+              && predicatesToSkipInTree.get(property.getURI()) != null) {
             // LOGGER.debug("Predicate to be skipped: " + property.getURI());
             continue;
           }
 
           rdfNode = statement.getObject();
+
+          // TODO make skipping anonymous properties an option
+          // Skip anonymous properties
           if (property.isAnon()) {
-            continue;
-            // onePropertyNode = new DefaultMutableTreeNode(
-            // "Anonymous Property ("
-            // + property.getId().getLabelString()
-            // + ")");
+            if (filterShowAnonymousNodes.isSelected()) {
+              if (rdfNode.isLiteral()) {
+                onePropertyNode = new DefaultMutableTreeNode(
+                    new WrapperDataProperty(property.getId().getLabelString(),
+                        "[Anonymous data property]"));
+              } else {
+                onePropertyNode = new DefaultMutableTreeNode(
+                    new WrapperObjectProperty(
+                        property.getId().getLabelString(),
+                        "[Anonymous object property]"));
+              }
+            } else {
+              LOGGER.debug("Skip anonymous property: "
+                  + property.getId().getLabelString());
+              continue;
+            }
           } else {
             if (rdfNode.isLiteral()) {
               onePropertyNode = new DefaultMutableTreeNode(
                   new WrapperDataProperty(property
-                      .getLocalName()
-                      + " (" + property.getURI() + ")"));
+                      .getLocalName(), property.getURI()));
             } else {
               onePropertyNode = new DefaultMutableTreeNode(
                   new WrapperObjectProperty(property
-                      .getLocalName()
-                      + " (" + property.getURI() + ")"));
+                      .getLocalName(), property.getURI()));
             }
           }
           oneIndividualNode.add(onePropertyNode);
@@ -2038,13 +2565,25 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           if (rdfNode.isLiteral()) {
             // onePropertyNode.add(new DefaultMutableTreeNode(
             // statement.getString() + " (Literal)"));
-            onePropertyNode.add(new DefaultMutableTreeNode(new WrapperLiteral(
-                statement.getString())));
+            literal = statement.getLiteral();
+            if (setupOutputDatatypesForLiterals.isSelected()) {
+              onePropertyNode.add(new DefaultMutableTreeNode(
+                  new WrapperLiteral(
+                      literal.getString() + " [" + literal.getDatatypeURI()
+                          + "]")));
+
+            } else {
+              onePropertyNode.add(new DefaultMutableTreeNode(
+                  new WrapperLiteral(
+                      literal.getString())));
+            }
+            // onePropertyNode.add(new DefaultMutableTreeNode(new
+            // WrapperLiteral(
+            // statement.getString())));
           } else {
             onePropertyNode.add(new DefaultMutableTreeNode(new WrapperInstance(
-                statement.getResource().getLocalName() + " ("
-                    + statement.getResource().getURI()
-                    + ")")));
+                statement.getResource().getLocalName(), statement.getResource()
+                    .getURI())));
 
           }
         }
@@ -2052,6 +2591,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     ontModelTree.setModel(new DefaultTreeModel(treeTopNode));
+
+    isTreeInSyncWithModel = true;
+    colorCodeTabs();
+
     LOGGER.debug("Tree representation of model created");
 
     return "Tree view of current model created";
@@ -2099,6 +2642,182 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
+   * Handle left-mouse click on ontology model tree. Initial use will be to jump
+   * to a matching individual in the tree
+   * 
+   * @param event
+   *          The mouse click event
+   */
+  private void processOntologyModelTreeLeftClick(MouseEvent event) {
+    Wrapper wrapper = getSelectedWrapperInTree(event);
+    findMatchingIndividual(wrapper, true);
+  }
+
+  /**
+   * Find a matching individual in the tree.
+   * 
+   * @param wrapper
+   *          The individual to be matched
+   * @param forward
+   *          True to search forward, false to search backward
+   */
+  private void findMatchingIndividual(Wrapper wrapper, boolean forward) {
+    final DefaultTreeModel treeModel = (DefaultTreeModel) ontModelTree
+        .getModel();
+    final DefaultMutableTreeNode finalMatchAt;
+    DefaultMutableTreeNode latestMatchAt = null;
+    DefaultMutableTreeNode firstMatchAt = null;
+    boolean foundClickedNode = false;
+    boolean wrappedAroundBackward = false;
+
+    if (wrapper != null && wrapper instanceof WrapperInstance
+        && wrapper.getUri().indexOf("Anonymous") == -1) {
+      DefaultMutableTreeNode node = (DefaultMutableTreeNode) treeModel
+          .getRoot();
+      @SuppressWarnings("unchecked")
+      Enumeration<DefaultMutableTreeNode> nodeEnumeration = node
+          .depthFirstEnumeration();
+      while (nodeEnumeration.hasMoreElements()) {
+        DefaultMutableTreeNode nextNode = nodeEnumeration.nextElement();
+        if (nextNode.getUserObject() instanceof Wrapper) {
+          Wrapper nodeWrapper = (Wrapper) nextNode.getUserObject();
+          if (wrapper.getUuid().equals(nodeWrapper.getUuid())) {
+            foundClickedNode = true;
+            if (forward) {
+              // If there is one past this location then
+              // use it, otherwise wrap back to top
+              latestMatchAt = null;
+            } else {
+              if (firstMatchAt != null || latestMatchAt != null) {
+                // Searching backward and have found a previous one
+                break;
+              }
+              wrappedAroundBackward = true;
+            }
+          } else if (!wrapper.getUuid().equals(nodeWrapper.getUuid())
+              && wrapper.getClass().equals(wrapper.getClass())
+              && wrapper.getLocalName().equals(nodeWrapper.getLocalName())
+              && wrapper.getUri().equals(nodeWrapper.getUri())) {
+            if (firstMatchAt == null && !foundClickedNode) {
+              // First one found, keep it in case we wrap around
+              firstMatchAt = nextNode;
+              LOGGER
+                  .debug("Found first matching node: search UUID: "
+                      + wrapper.getUuid() + " found UUID: "
+                      + nodeWrapper.getUuid());
+            } else {
+              // Keep track of latest one found
+              latestMatchAt = nextNode;
+              LOGGER
+                  .debug("Found a following matching node: search UUID: "
+                      + wrapper.getUuid() + " found UUID: "
+                      + nodeWrapper.getUuid());
+              // If going forward then this is the next match
+              if (forward && foundClickedNode) {
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if ((!forward || foundClickedNode) && latestMatchAt != null) {
+        finalMatchAt = latestMatchAt;
+        if (forward) {
+          setStatus("Next matching individual found");
+        } else {
+          if (wrappedAroundBackward) {
+            setStatus("Wrapped to bottom of tree and found a matching individual");
+          } else {
+            setStatus("Previous matching individual found");
+          }
+        }
+      } else if (firstMatchAt != null) {
+        finalMatchAt = firstMatchAt;
+        if (forward) {
+          setStatus("Wrapped to top of tree and found a matching individual");
+        } else {
+          setStatus("Previous matchint individual found");
+        }
+      } else {
+        finalMatchAt = null;
+        setStatus("This individual could not be found elsewhere in the tree");
+      }
+
+      if (finalMatchAt != null) {
+        ontModelTree.setExpandsSelectedPaths(true);
+
+        SwingUtilities.invokeLater(new Runnable() {
+          public void run() {
+            ontModelTree.setSelectionPath(new TreePath(treeModel
+                .getPathToRoot(finalMatchAt)));
+            ontModelTree.scrollPathToVisible(new TreePath(treeModel
+                .getPathToRoot(finalMatchAt)));
+            Rectangle visible = ontModelTree.getVisibleRect();
+            visible.x = 0;
+            ontModelTree.scrollRectToVisible(visible);
+          }
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle right-mouse click on ontology model tree. Initial use will be to add
+   * a class or property to the list of suppressed classes and properties so
+   * that it won't show up in the tree.
+   * 
+   * @param event
+   *          The mouse click event
+   */
+  private void processOntologyModelTreeRightClick(MouseEvent event) {
+    Wrapper wrapper = getSelectedWrapperInTree(event);
+    if (wrapper != null && wrapper.getUri().indexOf("Anonymous") == -1) {
+      if (wrapper instanceof WrapperClass
+            || wrapper instanceof WrapperDataProperty
+            || wrapper instanceof WrapperObjectProperty) {
+        FilterValuePopup popup = new FilterValuePopup(wrapper);
+        popup.show(event.getComponent(), event.getX(), event.getY());
+      } else if (wrapper instanceof WrapperInstance) {
+        findMatchingIndividual(wrapper, false);
+      }
+    }
+  }
+
+  /**
+   * Get the chosen Wrapper from the tree node that was clicked on.
+   * 
+   * @param event
+   *          The mouse click event
+   * 
+   * @return The Wrapper instance or null if the node is not a Wrapper
+   */
+  private Wrapper getSelectedWrapperInTree(MouseEvent event) {
+    Wrapper chosenWrapper = null;
+
+    LOGGER.debug("Tree mouse event: " + event.paramString());
+    TreePath path = ontModelTree.getPathForLocation(event.getX(), event.getY());
+    if (path != null) {
+      LOGGER.debug("Tree right-mouse event on: " + path.getLastPathComponent()
+          + " of class " + path.getLastPathComponent().getClass());
+      if (path.getLastPathComponent() instanceof DefaultMutableTreeNode) {
+        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path
+            .getLastPathComponent();
+        Object selectedObject = selectedNode.getUserObject();
+        LOGGER.debug("Class of object in the selected tree node: "
+            + selectedObject.getClass().getName());
+        if (selectedObject instanceof Wrapper) {
+          chosenWrapper = (Wrapper) selectedObject;
+          LOGGER.debug("Wrapper found: "
+              + selectedObject);
+        }
+      }
+    }
+
+    return chosenWrapper;
+  }
+
+  /**
    * Allow the user to select a file, which is expected to be an ontology, and
    * then load the file.
    */
@@ -2117,12 +2836,30 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     if (chosenFile != null) {
       loadOntologyFile(chosenFile);
-      lastDirectoryUsed = chosenFile.getParentFile();
     } else {
       JOptionPane.showMessageDialog(this, "No file to load",
           "No File Selected", JOptionPane.WARNING_MESSAGE);
     }
-    enableControls(true);
+  }
+
+  /**
+   * Open a recently used ontology file chosen from the file menu.
+   * 
+   * @param obj
+   *          The menu item selected - associated with the recently used file
+   */
+  private void openRecentOntologyFile(Object obj) {
+    int chosenFileIndex = -1;
+
+    for (int index = 0; index < fileOpenRecentFile.length; ++index) {
+      if (obj == fileOpenRecentFile[index]) {
+        chosenFileIndex = index;
+      }
+    }
+
+    if (chosenFileIndex > -1) {
+      loadOntologyFile(recentFiles.get(chosenFileIndex));
+    }
   }
 
   /**
@@ -2137,6 +2874,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     String data;
     StringBuffer allData;
 
+    lastDirectoryUsed = inputFile.getParentFile();
+
     reader = null;
     allData = new StringBuffer();
 
@@ -2150,6 +2889,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       assertions.moveCaretPosition(0);
       setStatus("Loaded file: " + inputFile.getName());
       setRdfFile(inputFile);
+      addRecentFile(inputFile);
     } catch (IOException ioExc) {
       setStatus("Unable to load file: " + inputFile.getName());
       JOptionPane.showMessageDialog(this,
@@ -2167,6 +2907,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           LOGGER.error("Unable to close input file", throwable);
         }
       }
+      ontModel = null;
+      ontModelNoInference = null;
+
+      isTreeInSyncWithModel = areInferencesInSyncWithModel
+          = areSparqlResultsInSyncWithModel = false;
+
+      enableControls(true);
     }
   }
 
@@ -2226,6 +2973,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       try {
         out = new FileWriter(destinationFile, false);
         out.write(assertions.getText());
+        addRecentFile(destinationFile);
       } catch (IOException ioExc) {
         LOGGER.error("Unable to write to file: " + destinationFile,
             ioExc);
@@ -2332,23 +3080,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
-   * Writes the triples to a data file.
-   * 
-   * This writes the current model to the file. The current model is the last
-   * model successfully run through the reasoner. The output will be in the
-   * same language (N3, Turtle, RDF/XML) as the assertions input unless a
-   * specific language was set for output.
-   * 
-   * @see saveAssertionsToFile
+   * @see #writeOntologyModel(File)
    */
-  private void writeOntologyModel() {
-    FileWriter out;
+  private void setupToWriteOntologyModel() {
     JFileChooser fileChooser;
     File destinationFile;
     boolean okayToWrite;
     int choice;
-
-    out = null;
 
     if (lastDirectoryUsed == null) {
       lastDirectoryUsed = new File(".");
@@ -2383,40 +3121,67 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     if (okayToWrite) {
+      modelExportFile = destinationFile;
+      runModelExport();
+      // writeOntologyModel(destinationFile);
+    }
+  }
 
-      LOGGER.info("Write model to file, " + destinationFile
-          + ", in format: " + assertionLanguage);
+  /**
+   * Writes the triples to a data file.
+   * 
+   * This writes the current model to the file. The current model is the last
+   * model successfully run through the reasoner. The output will be in the
+   * same language (N3, Turtle, RDF/XML) as the assertions input unless a
+   * specific language was set for output.
+   * 
+   * @see #setupToWriteOntologyModel()
+   * 
+   */
+  private String writeOntologyModel() {
+    FileWriter out = null;
+    String message = "model ("
+        + (setupOutputModelTypeAssertionsAndInferences.isSelected() ? "assertions and inferences"
+            : "assertions only") + ") to " + modelExportFile;
 
-      try {
-        out = new FileWriter(destinationFile, false);
-        if (setupOutputModelTypeAssertionsAndInferences.isSelected()) {
-          LOGGER
-              .info("Writing complete model (assertions and inferences)");
-          ontModel.write(out, getSelectedOutputLanguage()
-              .toUpperCase());
-        } else {
-          LOGGER.info("Writing assertions only");
-          ontModelNoInference.write(out, getSelectedOutputLanguage()
-              .toUpperCase());
-        }
-      } catch (IOException ioExc) {
-        LOGGER.error("Unable to write to file: " + destinationFile,
-            ioExc);
-        throw new RuntimeException("Unable to write output file ("
-            + destinationFile + ")", ioExc);
-      } finally {
-        if (out != null) {
-          try {
-            out.close();
-          } catch (Throwable throwable) {
-            LOGGER.error("Failed to close output file: "
-                + destinationFile, throwable);
-            throw new RuntimeException(
-                "Failed to close output file", throwable);
-          }
+    setStatus("Writing " + message);
+
+    LOGGER.info("Write model to file, " + modelExportFile
+        + ", in format: " + assertionLanguage);
+
+    try {
+      out = new FileWriter(modelExportFile, false);
+      if (setupOutputModelTypeAssertionsAndInferences.isSelected()) {
+        LOGGER
+            .info("Writing complete model (assertions and inferences)");
+        ontModel.writeAll(out, getSelectedOutputLanguage()
+            .toUpperCase(), null);
+      } else {
+        LOGGER.info("Writing assertions only");
+        ontModelNoInference.write(out, getSelectedOutputLanguage()
+            .toUpperCase());
+      }
+      message = "Completed writing " + message;
+    } catch (IOException ioExc) {
+      LOGGER.error("Unable to write to file: " + modelExportFile,
+          ioExc);
+      setStatus("Failed to write file (check log) " + message);
+      throw new RuntimeException("Unable to write output file ("
+          + modelExportFile + ")", ioExc);
+    } finally {
+      if (out != null) {
+        try {
+          out.close();
+        } catch (Throwable throwable) {
+          LOGGER.error("Failed to close output file: "
+              + modelExportFile, throwable);
+          throw new RuntimeException(
+              "Failed to close output file", throwable);
         }
       }
     }
+
+    return message;
   }
 
   /**
@@ -2499,6 +3264,50 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   public void windowOpened(WindowEvent arg0) {
   }
 
+  private class OntologyModelTreeMouseListener extends MouseAdapter {
+    public void mouseClicked(MouseEvent event) {
+      if (event.getButton() == MouseEvent.BUTTON1) {
+        processOntologyModelTreeLeftClick(event);
+      } else {
+        // Assume right-mouse click (e.g. not button 1)
+        processOntologyModelTreeRightClick(event);
+      }
+    }
+  }
+
+  private class FilterValuePopup extends JPopupMenu implements ActionListener {
+    /**
+     * Serial UID
+     */
+    private static final long serialVersionUID = 6587807055541029847L;
+
+    private Wrapper wrappedObject;
+    private JMenuItem menuItem;
+
+    public FilterValuePopup(Wrapper wrappedObject) {
+      this.wrappedObject = wrappedObject;
+
+      menuItem = new JMenuItem("Filter out: " + wrappedObject.toString());
+      menuItem.addActionListener(this);
+      add(menuItem);
+
+      // Don't need listener, no action to take for cancel
+      add(new JMenuItem("Cancel"));
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent event) {
+      if (event.getSource() instanceof JMenuItem) {
+        JMenuItem source = (JMenuItem) event.getSource();
+        if (source == menuItem) {
+          LOGGER.debug("FilterValuePopup choice: "
+              + wrappedObject.getClass().toString() + " - " + wrappedObject);
+          addToFilter(wrappedObject);
+        }
+      }
+    }
+  }
+
   /**
    * Executes the reasoner in response to action from any widget being
    * monitored
@@ -2525,6 +3334,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private class FileOpenListener implements ActionListener {
     public void actionPerformed(ActionEvent e) {
       openOntologyFile();
+    }
+  }
+
+  /**
+   * Loads a recently accessed ontology file
+   */
+  private class RecentOntologyFileOpenListener implements ActionListener {
+    public void actionPerformed(ActionEvent e) {
+      openRecentOntologyFile(e.getSource());
     }
   }
 
@@ -2569,7 +3387,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private class ExpandTreeListener implements ActionListener {
     public void actionPerformed(ActionEvent e) {
-      expandAll();
+      runExpandAllTreeNodes();
     }
   }
 
@@ -2578,7 +3396,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private class CollapseTreeListener implements ActionListener {
     public void actionPerformed(ActionEvent e) {
-      collapseAll();
+      runCollapseAllTreeNodes();
     }
   }
 
@@ -2596,7 +3414,25 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private class ModelSerializerListener implements ActionListener {
     public void actionPerformed(ActionEvent e) {
-      writeOntologyModel();
+      setupToWriteOntologyModel();
+    }
+  }
+
+  /**
+   * Allows the user to edit the list of classes filtered in the tree view
+   */
+  private class EditFilteredClassesListener implements ActionListener {
+    public void actionPerformed(ActionEvent e) {
+      editFilterMap(classesToSkipInTree);
+    }
+  }
+
+  /**
+   * Allows the user to edit the list of properties filtered in the tree view
+   */
+  private class EditFilteredPropertiesListener implements ActionListener {
+    public void actionPerformed(ActionEvent e) {
+      editFilterMap(predicatesToSkipInTree);
     }
   }
 
@@ -2645,6 +3481,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     public void keyReleased(KeyEvent arg0) {
+      if (arg0.getSource() == assertions) {
+        isTreeInSyncWithModel = areInferencesInSyncWithModel
+            = areSparqlResultsInSyncWithModel = false;
+        ontModel = null;
+        ontModelNoInference = null;
+      }
+
       enableControls(true);
     }
 
@@ -3192,7 +4035,8 @@ class FontData {
   /**
    * Set the foreground Color instance for this FontData instance.
    * 
-   * @param pColor The foreground Color
+   * @param pColor
+   *          The foreground Color
    */
   private void setColor(Color pColor) {
     color = pColor;

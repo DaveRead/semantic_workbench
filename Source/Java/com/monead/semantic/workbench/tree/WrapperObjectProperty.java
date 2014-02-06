@@ -25,16 +25,10 @@ package com.monead.semantic.workbench.tree;
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
  * @author David Read
- *
+ * 
  */
-public class WrapperObjectProperty {
-  String label;
-
-  public WrapperObjectProperty(String label) {
-    this.label = label;
-  }
-
-  public String toString() {
-    return label;
+public class WrapperObjectProperty extends Wrapper {
+  public WrapperObjectProperty(String localName, String uri) {
+    super(localName, uri);
   }
 }
