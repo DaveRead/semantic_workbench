@@ -30,6 +30,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
@@ -57,6 +58,7 @@ import org.apache.log4j.Logger;
 import org.mindswap.pellet.jena.PelletReasonerFactory;
 import org.mindswap.pellet.utils.VersionInfo;
 
+import com.hp.hpl.jena.ontology.ConversionException;
 import com.hp.hpl.jena.ontology.Individual;
 import com.hp.hpl.jena.ontology.OntClass;
 import com.hp.hpl.jena.ontology.OntModel;
@@ -89,7 +91,8 @@ import com.monead.semantic.workbench.tree.WrapperDataProperty;
 import com.monead.semantic.workbench.tree.WrapperInstance;
 import com.monead.semantic.workbench.tree.WrapperLiteral;
 import com.monead.semantic.workbench.tree.WrapperObjectProperty;
-import com.sun.xml.internal.ws.model.WrapperParameter;
+
+//import com.sun.xml.internal.ws.model.WrapperParameter;
 
 /**
  * SemanticWorkbench - A GUI to input assertions, run an inferencing engine and
@@ -127,13 +130,14 @@ import com.sun.xml.internal.ws.model.WrapperParameter;
  *         TODO Add support to read/write SPARQL queries from/to files
  * 
  *         TODO Add support to write SPARQL results to a file
+ * 
  */
 public class SemanticWorkbench extends JFrame implements Runnable,
     WindowListener {
   /**
    * The version identifier
    */
-  public final static String VERSION = "1.7.0";
+  public final static String VERSION = "1.7.7";
 
   /**
    * Serial UID
@@ -199,6 +203,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
   private final static String PROPERTIES_FILE_NAME = "semantic_workbench.properties";
 
+  private final static String PROP_LAST_TOP_X_POSITION = "LastTopPositionX";
+  private final static String PROP_LAST_TOP_Y_POSITION = "LastTopPositionY";
+  private final static String PROP_LAST_WIDTH = "LastWidth";
+  private final static String PROP_LAST_HEIGHT = "LastHeight";
+
   private final static String PROP_LAST_DIRECTORY = "LastDirectory";
   private final static String PROP_OUTPUT_FORMAT = "OutputFormat";
   private final static String PROP_OUTPUT_CONTENT = "OutputContent";
@@ -216,6 +225,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private final static String PROP_PREFIX_RECENT_FILE = "RecentFile_";
   private final static String PROP_ENFORCE_FILTERS_IN_TREE_VIEW = "EnforceTreeViewFilters";
   private final static String PROP_DISPLAY_ANONYMOUS_NODES_IN_TREE_VIEW = "ShowAnonymousNodesInTreeView";
+  private final static String PROP_ENABLE_STRICT_MODE = "EnableStrictMode";
 
   /**
    * Configuration properties
@@ -342,6 +352,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Flag literal values
    */
   private JCheckBoxMenuItem setupOutputFlagLiteralValues;
+
+  /**
+   * Enable/disable strict mode. (From the Jena documentation: Strict mode means
+   * that converting a common resource to a particular language element, such as
+   * an ontology class, will be subject to some simple syntactic-level checks
+   * for appropriateness.)
+   */
+  private JCheckBoxMenuItem setupEnableStrictMode;
 
   /**
    * Set the font used for the major interface display widgets
@@ -539,29 +557,64 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
-   * Prevent the initial window from being too large. Constrains it
-   * to a maximum of 90% of the screen height and width
+   * Open the window at its last location and last dimenstions. If the window
+   * will not fit on screen then assume that the screen dimensions
+   * have change and move to upper left of 0, 0 and set width and height
+   * to previous dimensions if they fit or reduce to 90% of screen dim.
+   * 
+   * If there is no window position or size information then simply assure that
+   * the default window size is no more than 90% of screen height and width.
    */
   private void sizing() {
     boolean resizeRequired = false;
-    double height = this.getSize().getHeight();
-    double width = this.getSize().getWidth();
+    boolean usePrevious = false;
+    int previousHeight = 0;
+    int previousWidth = 0;
+    int previousTopX = 0;
+    int previousTopY = 0;
+    double setHeight = this.getSize().getHeight();
+    double setWidth = this.getSize().getWidth();
     double screenHeight = Toolkit.getDefaultToolkit().getScreenSize()
         .getHeight();
     double screenWidth = Toolkit.getDefaultToolkit().getScreenSize().getWidth();
 
-    if (screenHeight * .9 < height) {
-      height = screenHeight * .9;
-      resizeRequired = true;
+    try {
+      previousHeight = Integer.parseInt(properties.getProperty(
+          PROP_LAST_HEIGHT, setHeight + ""));
+      previousWidth = Integer.parseInt(properties.getProperty(PROP_LAST_WIDTH,
+          setWidth + ""));
+      previousTopX = Integer.parseInt(properties.getProperty(
+          PROP_LAST_TOP_X_POSITION, "0"));
+      previousTopY = Integer.parseInt(properties.getProperty(
+          PROP_LAST_TOP_Y_POSITION, "0"));
+      if (previousHeight > 0 && previousWidth > 0 && previousTopX >= 0
+          && previousTopY >= 0) {
+        usePrevious = true;
+      }
+    } catch (Throwable throwable) {
+      LOGGER.warn("Illegal window position or size property value, ignoring",
+          throwable);
     }
 
-    if (screenWidth * .9 < width) {
-      width = screenWidth * .9;
+    if (usePrevious && previousTopX + previousWidth < screenWidth
+        && previousTopY + previousHeight < screenHeight) {
+      this.setLocation(previousTopX, previousTopY);
+      setWidth = previousWidth;
+      setHeight = previousHeight;
       resizeRequired = true;
+    } else {
+      if (screenHeight * .9 < setHeight) {
+        setHeight = screenHeight * .9;
+        resizeRequired = true;
+      }
+      if (screenWidth * .9 < setWidth) {
+        setWidth = screenWidth * .9;
+        resizeRequired = true;
+      }
     }
 
     if (resizeRequired) {
-      this.setSize((int) width, (int) height);
+      this.setSize((int) setWidth, (int) setHeight);
     }
   }
 
@@ -642,6 +695,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .getProperty(PROP_FLAG_LITERALS_IN_RESULTS, "Y").toUpperCase()
         .startsWith("Y"));
 
+    setupEnableStrictMode.setSelected(properties
+        .getProperty(PROP_ENABLE_STRICT_MODE, "Y").toUpperCase()
+        .startsWith("Y"));
+
     filterEnableFilters.setSelected(properties
         .getProperty(PROP_ENFORCE_FILTERS_IN_TREE_VIEW, "Y").toUpperCase()
         .startsWith("Y"));
@@ -661,7 +718,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     List<String> prefixNames = new ArrayList<String>();
 
     /**
-     * Find any keys for prefious files
+     * Find any keys for previous files
      */
     for (Object key : properties.keySet()) {
       if (key.toString().startsWith(PROP_PREFIX_RECENT_FILE)) {
@@ -791,6 +848,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           .getAbsolutePath());
     }
 
+    properties.setProperty(PROP_LAST_HEIGHT, this.getSize().height + "");
+    properties.setProperty(PROP_LAST_WIDTH, this.getSize().width + "");
+    properties.setProperty(PROP_LAST_TOP_X_POSITION, this.getLocation().x + "");
+    properties.setProperty(PROP_LAST_TOP_Y_POSITION, this.getLocation().y + "");
+
     properties.setProperty(PROP_LAST_DIRECTORY,
         lastDirectoryUsed.getAbsolutePath());
 
@@ -820,6 +882,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         setupOutputDatatypesForLiterals.isSelected() ? "Yes" : "No");
     properties.setProperty(PROP_FLAG_LITERALS_IN_RESULTS,
         setupOutputFlagLiteralValues.isSelected() ? "Yes" : "No");
+
+    properties.setProperty(PROP_ENABLE_STRICT_MODE,
+        setupEnableStrictMode.isSelected() ? "Yes" : "No");
 
     properties.setProperty(PROP_ENFORCE_FILTERS_IN_TREE_VIEW,
         filterEnableFilters.isSelected() ? "Yes" : "No");
@@ -1415,6 +1480,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     menu.addSeparator();
 
+    setupEnableStrictMode = new JCheckBoxMenuItem("Enable Strict Checking Mode");
+    setupEnableStrictMode.setSelected(true);
+    setupEnableStrictMode.addActionListener(new ReasonerConfigurationChange());
+    menu.add(setupEnableStrictMode);
+
+    menu.addSeparator();
+
     setupFont = new JMenuItem("Font");
     setupFont.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F,
         ActionEvent.ALT_MASK));
@@ -1577,49 +1649,55 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   private void colorCodeTabs() {
+    Color tabNormalFgColor = tabbedPane.getForegroundAt(0);
     Color tabNormalBgColor = tabbedPane.getBackgroundAt(0);
 
     if (!areInferencesInSyncWithModel
         && inferredTriples.getText().trim().length() > 0) {
-      tabbedPane.setBackgroundAt(1, Color.red);
+      tabbedPane.setForegroundAt(1, Color.red);
+      tabbedPane.setBackgroundAt(1, Color.pink);
       tabbedPane.setToolTipTextAt(1,
           "Results out of sync with loaded assertions");
-      inferredTriples.setBackground(Color.red);
-      inferredTriples.setForeground(Color.white);
+      // inferredTriples.setBackground(Color.red);
+      // inferredTriples.setForeground(Color.white);
     } else {
+      tabbedPane.setForegroundAt(1, tabNormalFgColor);
       tabbedPane.setBackgroundAt(1, tabNormalBgColor);
       tabbedPane.setToolTipTextAt(1, "");
-      inferredTriples.setBackground(Color.red);
-      inferredTriples.setBackground(Color.white);
-      inferredTriples.setForeground(status.getForeground());
+      // inferredTriples.setBackground(Color.white);
+      // inferredTriples.setForeground(status.getForeground());
     }
 
     if (!isTreeInSyncWithModel
         && !ontModelTree.getModel().isLeaf(ontModelTree.getModel().getRoot())) {
-      tabbedPane.setBackgroundAt(2, Color.red);
+      tabbedPane.setForegroundAt(2, Color.red);
+      tabbedPane.setBackgroundAt(2, Color.pink);
       tabbedPane.setToolTipTextAt(2,
           "Results out of sync with loaded assertions");
-      ontModelTree.setBackground(Color.red);
-      ontModelTree.setForeground(Color.white);
+      // ontModelTree.setBackground(Color.red);
+      // ontModelTree.setForeground(Color.white);
     } else {
+      tabbedPane.setForegroundAt(2, tabNormalFgColor);
       tabbedPane.setBackgroundAt(2, tabNormalBgColor);
       tabbedPane.setToolTipTextAt(2, "");
-      ontModelTree.setBackground(Color.white);
-      ontModelTree.setForeground(status.getForeground());
+      // ontModelTree.setBackground(Color.white);
+      // ontModelTree.setForeground(status.getForeground());
     }
 
     if (!areSparqlResultsInSyncWithModel
         && sparqlResultsTable.getRowCount() > 0) {
-      tabbedPane.setBackgroundAt(3, Color.red);
+      tabbedPane.setForegroundAt(3, Color.red);
+      tabbedPane.setBackgroundAt(3, Color.pink);
       tabbedPane.setToolTipTextAt(3,
           "Results out of sync with loaded assertions");
-      sparqlResultsTable.setBackground(Color.red);
-      sparqlResultsTable.setForeground(Color.white);
+      // sparqlResultsTable.setBackground(Color.red);
+      // sparqlResultsTable.setForeground(Color.white);
     } else {
+      tabbedPane.setForegroundAt(3, tabNormalFgColor);
       tabbedPane.setBackgroundAt(3, tabNormalBgColor);
       tabbedPane.setToolTipTextAt(3, "");
-      sparqlResultsTable.setBackground(Color.white);
-      sparqlResultsTable.setForeground(status.getForeground());
+      // sparqlResultsTable.setBackground(Color.white);
+      // sparqlResultsTable.setForeground(status.getForeground());
     }
 
   }
@@ -1635,6 +1713,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       reasoningLevel.addItem(level);
     }
     reasoningLevel.setSelectedIndex(reasoningLevel.getItemCount() - 1);
+    reasoningLevel.addActionListener(new ReasonerConfigurationChange());
 
     language = new JComboBox();
     language.addItem("Auto");
@@ -1685,6 +1764,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     sparqlInput.setText("select ?s ?p ?o where { ?s ?p ?o } limit 100");
 
     sparqlResultsTable = new JTable(new SparqlTableModel());
+    sparqlResultsTable.setAutoCreateRowSorter(true);
 
     // Determine whether alternate tree icons exist
     if (ImageLibrary.instance().getImageIcon(ImageLibrary.ICON_TREE_CLASS) != null) {
@@ -1696,9 +1776,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     ontModelTree = new JTree(new DefaultTreeModel(
         new DefaultMutableTreeNode("No Tree Generated")));
 
-    // TODO Add listeners to support taking actions with information in the tree
-    // TODO Mouse listener to add selected class to classesToSkipInTree
-    // TODO Mouse listener to add selected property to predicatesToSkipInTree
     ontModelTree.addMouseListener(new OntologyModelTreeMouseListener());
 
     if (replaceTreeImages) {
@@ -1878,6 +1955,19 @@ public class SemanticWorkbench extends JFrame implements Runnable,
                 + "but the task was undefined.", "Error: No Process to Run",
             JOptionPane.ERROR_MESSAGE);
       }
+    } catch (ConversionException ce) {
+      setStatus("Error: " + ce.getClass().getName() + ": "
+          + ce.getMessage());
+      LOGGER.error("Failed during conversion within the model", ce);
+      JOptionPane
+          .showMessageDialog(
+              this,
+              "An error occurred when converting a resource to a language element within the model.\n"
+                  + "If strict checking mode is enabled you may want to try disabling it.\n\n"
+                  + ce.getClass().getName() + "\n\n"
+                  + ce.getMessage(),
+              "Error Converting Resource to Language Element",
+              JOptionPane.ERROR_MESSAGE);
     } catch (Throwable throwable) {
       setStatus("Error: " + throwable.getClass().getName() + ": "
           + throwable.getMessage());
@@ -2255,7 +2345,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     } else if (reasoningLevelIndex == 3) { // OWL Lite (Jena)
       model = ModelFactory
           .createOntologyModel(OntModelSpec.OWL_DL_MEM_RULE_INF);// OWL_MEM_RULE_INF);//LITE_MEM_TRANS_INF);
-      model.setStrictMode(false);
     } else if (reasoningLevelIndex == 4) { // OWL (Pellet)
       // Reasoner reasoner = PelletReasonerFactory.theInstance().create();
       // Model infModel = ModelFactory.createInfModel(reasoner, ModelFactory
@@ -2265,8 +2354,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
       // create an empty ontology model using Pellet spec
       model = ModelFactory.createOntologyModel(PelletReasonerFactory.THE_SPEC);
-
     }
+
+    model.setStrictMode(setupEnableStrictMode.isSelected());
 
     return model;
   }
@@ -2386,7 +2476,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     ExtendedIterator<Individual> individualsIterator;
     StmtIterator stmtIterator;
     int classNumber;
-    ProgressMonitor progress;
+    ProgressMonitor progress = null;
 
     setStatus(messagePrefix);
     setWaitCursor(true);
@@ -2401,192 +2491,231 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       LOGGER.trace("Building list of classes in the model");
     }
 
-    classesIterator = ontModel.listClasses();
+    try {
+      classesIterator = ontModel.listClasses();
 
-    setStatus(messagePrefix + "... obtaining the list of classes");
+      setStatus(messagePrefix + "... obtaining the list of classes");
 
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("List of classes built");
-    }
-    ontClasses = new ArrayList<OntClass>();
-    while (classesIterator.hasNext()) {
-      ontClasses.add(classesIterator.next());
-    }
-    progress = new ProgressMonitor(this, "Create the model tree view",
-        "Setting up the class list", 0, ontClasses.size());
-    Collections.sort(ontClasses, new OntClassComparator());
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("List of classes sorted");
-    }
-
-    classNumber = 0;
-    for (OntClass ontClass : ontClasses) {
-      setStatus(messagePrefix + " for class " + ontClass);
-      progress.setNote(ontClass.toString());
-      progress.setProgress(++classNumber);
-
-      // Check whether class is to be skipped
       if (LOGGER.isTraceEnabled()) {
-        LOGGER.trace("Check if class to be skipped: " + ontClass.getURI());
-        for (String skipClass : classesToSkipInTree.keySet()) {
-          LOGGER.trace("Class to skip: " + skipClass + "  equal? "
-              + (skipClass.equals(ontClass.getURI())));
-        }
+        LOGGER.trace("List of classes built");
       }
-      if (filterEnableFilters.isSelected()
-          && classesToSkipInTree.get(ontClass.getURI()) != null) {
-        LOGGER.debug("Class to be skipped: " + ontClass.getURI());
-        continue;
+      ontClasses = new ArrayList<OntClass>();
+      while (classesIterator.hasNext()) {
+        ontClasses.add(classesIterator.next());
+      }
+      progress = new ProgressMonitor(this, "Create the model tree view",
+          "Setting up the class list", 0, ontClasses.size());
+      Collections.sort(ontClasses, new OntClassComparator());
+      if (LOGGER.isTraceEnabled()) {
+        LOGGER.trace("List of classes sorted");
       }
 
-      // TODO make skipping anonymous classes an option
-      // Skipping anonymous classes
-      if (ontClass.isAnon()) {
-        if (filterShowAnonymousNodes.isSelected()) {
-          oneClassNode = new DefaultMutableTreeNode(new WrapperClass(ontClass
-              .getId().getLabelString(), "[Anonymous class]"));
-        } else {
-          LOGGER.debug("Skip anonymous class: "
-              + ontClass.getId().getLabelString());
+      classNumber = 0;
+      for (OntClass ontClass : ontClasses) {
+        setStatus(messagePrefix + " for class " + ontClass);
+        progress.setNote(ontClass.toString());
+        progress.setProgress(++classNumber);
+
+        // Check whether class is to be skipped
+        if (LOGGER.isTraceEnabled()) {
+          LOGGER.trace("Check if class to be skipped: " + ontClass.getURI());
+          for (String skipClass : classesToSkipInTree.keySet()) {
+            LOGGER.trace("Class to skip: " + skipClass + "  equal? "
+                + (skipClass.equals(ontClass.getURI())));
+          }
+        }
+        if (filterEnableFilters.isSelected()
+            && classesToSkipInTree.get(ontClass.getURI()) != null) {
+          LOGGER.debug("Class to be skipped: " + ontClass.getURI());
           continue;
         }
-      } else {
-        oneClassNode = new DefaultMutableTreeNode(new WrapperClass(ontClass
-            .getLocalName(), ontClass.getURI()));
-        LOGGER.debug("Add class node: " + ontClass
-            .getLocalName()
-            + " (" + ontClass.getURI() + ")");
-      }
-      classesNode.add(oneClassNode);
 
-      // Individuals
-      if (LOGGER.isTraceEnabled()) {
-        LOGGER.trace("Get list of individuals for " + ontClass.getURI());
-      }
-      individualsIterator = ontModel.listIndividuals(ontClass);
-      if (LOGGER.isTraceEnabled()) {
-        LOGGER.trace("List of individuals built for " + ontClass.getURI()
-            + " Is there at least one individual? "
-            + individualsIterator.hasNext());
-      }
-      individuals = new ArrayList<Individual>();
-      while (individualsIterator.hasNext()) {
-        individuals.add(individualsIterator.next());
-      }
-      Collections.sort(individuals, new IndividualComparator());
-      if (LOGGER.isTraceEnabled()) {
-        LOGGER.trace("List of individuals sorted for " + ontClass.getURI());
-      }
-
-      for (Individual individual : individuals) {
-        if (LOGGER.isTraceEnabled()) {
-          LOGGER.trace("Next individual: " + individual.getLocalName());
-        }
-
-        // TODO make skipping anonymous individuals an option
-        // Skip anonymous individuals
-        if (individual.isAnon()) {
+        if (ontClass.isAnon()) {
+          // Show anonymous classes based on configuration
           if (filterShowAnonymousNodes.isSelected()) {
-            oneIndividualNode = new DefaultMutableTreeNode(new WrapperInstance(
-                individual.getId().getLabelString(), "[Anonymous individual]"));
+            oneClassNode = new DefaultMutableTreeNode(new WrapperClass(ontClass
+                .getId().getLabelString(), "[Anonymous class]"));
           } else {
-            LOGGER.debug("Skip anonymous individual: "
-                + individual.getId().getLabelString());
+            LOGGER.debug("Skip anonymous class: "
+                + ontClass.getId().getLabelString());
             continue;
           }
         } else {
-          oneIndividualNode = new DefaultMutableTreeNode(new WrapperInstance(
-              individual
-                  .getLocalName(), individual.getURI()));
+          oneClassNode = new DefaultMutableTreeNode(new WrapperClass(ontClass
+              .getLocalName(), ontClass.getURI()));
+          LOGGER.debug("Add class node: " + ontClass
+              .getLocalName()
+              + " (" + ontClass.getURI() + ")");
         }
-        oneClassNode.add(oneIndividualNode);
+        classesNode.add(oneClassNode);
 
-        // Properties (predicates) and Objects
+        // Individuals
         if (LOGGER.isTraceEnabled()) {
-          LOGGER.trace("Get list of statements for " + individual.getURI());
+          LOGGER.trace("Get list of individuals for " + ontClass.getURI());
         }
-        stmtIterator = individual.listProperties();
+        individualsIterator = ontModel.listIndividuals(ontClass);
         if (LOGGER.isTraceEnabled()) {
-          LOGGER.trace("List of statements built for " + individual.getURI());
+          LOGGER.trace("List of individuals built for " + ontClass.getURI()
+              + " Is there at least one individual? "
+              + individualsIterator.hasNext());
         }
-        statements = new ArrayList<Statement>();
-        while (stmtIterator.hasNext()) {
-          statements.add(stmtIterator.next());
-        }
-        Collections.sort(statements, new StatementComparator());
-        if (LOGGER.isTraceEnabled()) {
-          LOGGER.trace("List of statements sorted for " + ontClass.getURI());
+        individuals = new ArrayList<Individual>();
+
+        while (individualsIterator.hasNext()) {
+          individuals.add(individualsIterator.next());
         }
 
-        for (Statement statement : statements) {
-          property = statement.getPredicate();
+        Collections.sort(individuals, new IndividualComparator());
+        if (LOGGER.isTraceEnabled()) {
+          LOGGER.trace("List of individuals sorted for " + ontClass.getURI());
+        }
 
-          // Check whether predicate is to be skipped
-          if (filterEnableFilters.isSelected()
-              && predicatesToSkipInTree.get(property.getURI()) != null) {
-            // LOGGER.debug("Predicate to be skipped: " + property.getURI());
-            continue;
+        for (Individual individual : individuals) {
+          if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Next individual: " + individual.getLocalName());
           }
 
-          rdfNode = statement.getObject();
-
-          // TODO make skipping anonymous properties an option
-          // Skip anonymous properties
-          if (property.isAnon()) {
+          if (individual.isAnon()) {
+            // Show anonymous individuals based on configuration
             if (filterShowAnonymousNodes.isSelected()) {
-              if (rdfNode.isLiteral()) {
-                onePropertyNode = new DefaultMutableTreeNode(
-                    new WrapperDataProperty(property.getId().getLabelString(),
-                        "[Anonymous data property]"));
+              if (individual.getId().getLabelString() != null) {
+                oneIndividualNode = new DefaultMutableTreeNode(
+                    new WrapperInstance(
+                        individual.getId().getLabelString(),
+                        "[Anonymous individual]"));
               } else {
-                onePropertyNode = new DefaultMutableTreeNode(
-                    new WrapperObjectProperty(
-                        property.getId().getLabelString(),
-                        "[Anonymous object property]"));
+                oneIndividualNode = new DefaultMutableTreeNode(
+                    new WrapperInstance(individual.toString(),
+                        "[null label - anonymous individual]"));
               }
             } else {
-              LOGGER.debug("Skip anonymous property: "
-                  + property.getId().getLabelString());
+              LOGGER.debug("Skip anonymous individual: "
+                  + individual.getId().getLabelString());
               continue;
             }
+          } else if (individual.getLocalName() != null) {
+            oneIndividualNode = new DefaultMutableTreeNode(new WrapperInstance(
+                individual
+                    .getLocalName(), individual.getURI()));
           } else {
-            if (rdfNode.isLiteral()) {
-              onePropertyNode = new DefaultMutableTreeNode(
-                  new WrapperDataProperty(property
-                      .getLocalName(), property.getURI()));
-            } else {
-              onePropertyNode = new DefaultMutableTreeNode(
-                  new WrapperObjectProperty(property
-                      .getLocalName(), property.getURI()));
-            }
+            oneIndividualNode = new DefaultMutableTreeNode(new WrapperInstance(
+                individual.toString(), "[null name - non anonymous]"));
           }
-          oneIndividualNode.add(onePropertyNode);
+          oneClassNode.add(oneIndividualNode);
 
-          if (rdfNode.isLiteral()) {
-            // onePropertyNode.add(new DefaultMutableTreeNode(
-            // statement.getString() + " (Literal)"));
-            literal = statement.getLiteral();
-            if (setupOutputDatatypesForLiterals.isSelected()) {
-              onePropertyNode.add(new DefaultMutableTreeNode(
-                  new WrapperLiteral(
-                      literal.getString() + " [" + literal.getDatatypeURI()
-                          + "]")));
+          // Properties (predicates) and Objects
+          if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Get list of statements for " + individual.getURI());
+          }
+          stmtIterator = individual.listProperties();
+          if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("List of statements built for " + individual.getURI());
+          }
+          statements = new ArrayList<Statement>();
+          while (stmtIterator.hasNext()) {
+            statements.add(stmtIterator.next());
+          }
+          Collections.sort(statements, new StatementComparator());
+          if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("List of statements sorted for " + ontClass.getURI());
+          }
 
-            } else {
-              onePropertyNode.add(new DefaultMutableTreeNode(
-                  new WrapperLiteral(
-                      literal.getString())));
+          for (Statement statement : statements) {
+            property = statement.getPredicate();
+
+            // Check whether predicate is to be skipped
+            if (filterEnableFilters.isSelected()
+                && predicatesToSkipInTree.get(property.getURI()) != null) {
+              // LOGGER.debug("Predicate to be skipped: " + property.getURI());
+              continue;
             }
-            // onePropertyNode.add(new DefaultMutableTreeNode(new
-            // WrapperLiteral(
-            // statement.getString())));
-          } else {
-            onePropertyNode.add(new DefaultMutableTreeNode(new WrapperInstance(
-                statement.getResource().getLocalName(), statement.getResource()
-                    .getURI())));
 
+            rdfNode = statement.getObject();
+
+            if (property.isAnon()) {
+              // Show anonymous properties based on configuration
+              if (filterShowAnonymousNodes.isSelected()) {
+                if (rdfNode.isLiteral()) {
+                  onePropertyNode = new DefaultMutableTreeNode(
+                      new WrapperDataProperty(
+                          property.getId().getLabelString(),
+                          "[Anonymous data property]"));
+                } else {
+                  onePropertyNode = new DefaultMutableTreeNode(
+                      new WrapperObjectProperty(
+                          property.getId().getLabelString(),
+                          "[Anonymous object property]"));
+                }
+              } else {
+                LOGGER.debug("Skip anonymous property: "
+                    + property.getId().getLabelString());
+                continue;
+              }
+            } else if (rdfNode.isLiteral() || !statement.getResource().isAnon()
+                || filterShowAnonymousNodes.isSelected()) {
+              if (rdfNode.isLiteral()) {
+                onePropertyNode = new DefaultMutableTreeNode(
+                    new WrapperDataProperty(property
+                        .getLocalName(), property.getURI()));
+              } else {
+                onePropertyNode = new DefaultMutableTreeNode(
+                    new WrapperObjectProperty(property
+                        .getLocalName(), property.getURI()));
+              }
+            } else {
+              LOGGER
+                  .debug("Skip concrete property of an anonymous individual: "
+                      + property.getURI() + ", "
+                      + statement.getResource().getId().getLabelString());
+              continue;
+
+            }
+            oneIndividualNode.add(onePropertyNode);
+
+            if (rdfNode.isLiteral()) {
+              // onePropertyNode.add(new DefaultMutableTreeNode(
+              // statement.getString() + " (Literal)"));
+              literal = statement.getLiteral();
+              if (setupOutputDatatypesForLiterals.isSelected()) {
+                onePropertyNode.add(new DefaultMutableTreeNode(
+                    new WrapperLiteral(
+                        literal.getString() + " [" + literal.getDatatypeURI()
+                            + "]")));
+
+              } else {
+                onePropertyNode.add(new DefaultMutableTreeNode(
+                    new WrapperLiteral(
+                        literal.getString())));
+              }
+              // onePropertyNode.add(new DefaultMutableTreeNode(new
+              // WrapperLiteral(
+              // statement.getString())));
+            } else {
+              if (statement.getResource().isAnon()) {
+                if (filterShowAnonymousNodes.isSelected()) {
+                  onePropertyNode.add(new DefaultMutableTreeNode(
+                      new WrapperInstance(
+                          statement.getResource().getId().getLabelString(),
+                          "[Anonymous individual]")));
+                } else {
+                  LOGGER.debug("Skip anonymous individual: "
+                      + statement.getResource().getId().getLabelString());
+                  continue;
+                }
+              } else {
+                onePropertyNode.add(new DefaultMutableTreeNode(
+                    new WrapperInstance(
+                        statement.getResource().getLocalName(), statement
+                            .getResource()
+                            .getURI())));
+              }
+            }
           }
         }
+      }
+    } finally {
+      if (progress != null) {
+        progress.close();
       }
     }
 
@@ -2670,13 +2799,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     boolean foundClickedNode = false;
     boolean wrappedAroundBackward = false;
 
-    if (wrapper != null && wrapper instanceof WrapperInstance
-        && wrapper.getUri().indexOf("Anonymous") == -1) {
+    if (wrapper != null && wrapper instanceof WrapperInstance) {
       DefaultMutableTreeNode node = (DefaultMutableTreeNode) treeModel
           .getRoot();
       @SuppressWarnings("unchecked")
       Enumeration<DefaultMutableTreeNode> nodeEnumeration = node
-          .depthFirstEnumeration();
+          .preorderEnumeration();
       while (nodeEnumeration.hasMoreElements()) {
         DefaultMutableTreeNode nextNode = nodeEnumeration.nextElement();
         if (nextNode.getUserObject() instanceof Wrapper) {
@@ -2724,24 +2852,27 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       if ((!forward || foundClickedNode) && latestMatchAt != null) {
         finalMatchAt = latestMatchAt;
         if (forward) {
-          setStatus("Next matching individual found");
+          setStatus("Next " + wrapper.getLocalName() + " found");
         } else {
           if (wrappedAroundBackward) {
-            setStatus("Wrapped to bottom of tree and found a matching individual");
+            setStatus("Wrapped to bottom of tree and found a "
+                + wrapper.getLocalName());
           } else {
-            setStatus("Previous matching individual found");
+            setStatus("Previous " + wrapper.getLocalName() + " found");
           }
         }
       } else if (firstMatchAt != null) {
         finalMatchAt = firstMatchAt;
         if (forward) {
-          setStatus("Wrapped to top of tree and found a matching individual");
+          setStatus("Wrapped to top of tree and found a "
+              + wrapper.getLocalName());
         } else {
-          setStatus("Previous matchint individual found");
+          setStatus("Previous " + wrapper.getLocalName() + " found");
         }
       } else {
         finalMatchAt = null;
-        setStatus("This individual could not be found elsewhere in the tree");
+        setStatus(wrapper.getLocalName()
+            + " could not be found elsewhere in the tree");
       }
 
       if (finalMatchAt != null) {
@@ -2772,7 +2903,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void processOntologyModelTreeRightClick(MouseEvent event) {
     Wrapper wrapper = getSelectedWrapperInTree(event);
-    if (wrapper != null && wrapper.getUri().indexOf("Anonymous") == -1) {
+    if (wrapper != null) { // && wrapper.getUri().indexOf("Anonymous") == -1) {
       if (wrapper instanceof WrapperClass
             || wrapper instanceof WrapperDataProperty
             || wrapper instanceof WrapperObjectProperty) {
@@ -2782,6 +2913,19 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         findMatchingIndividual(wrapper, false);
       }
     }
+  }
+
+  /**
+   * Invalidates the existing ontology model.
+   */
+  private void invalidateModel() {
+    ontModel = null;
+    ontModelNoInference = null;
+
+    isTreeInSyncWithModel = areInferencesInSyncWithModel
+        = areSparqlResultsInSyncWithModel = false;
+
+    enableControls(true);
   }
 
   /**
@@ -2836,9 +2980,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     if (chosenFile != null) {
       loadOntologyFile(chosenFile);
-    } else {
-      JOptionPane.showMessageDialog(this, "No file to load",
-          "No File Selected", JOptionPane.WARNING_MESSAGE);
+      // } else {
+      // JOptionPane.showMessageDialog(this, "No file to load",
+      // "No File Selected", JOptionPane.WARNING_MESSAGE);
     }
   }
 
@@ -3319,6 +3463,19 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
+   * Used to detect configuration changes that would cause the reasoner to
+   * behave differently, thereby invalidating the current model.
+   * 
+   * @author David Read
+   * 
+   */
+  private class ReasonerConfigurationChange implements ActionListener {
+    public void actionPerformed(ActionEvent e) {
+      invalidateModel();
+    }
+  }
+
+  /**
    * Executes the SPARQL query in response to action from any widget being
    * monitored
    */
@@ -3482,10 +3639,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     public void keyReleased(KeyEvent arg0) {
       if (arg0.getSource() == assertions) {
-        isTreeInSyncWithModel = areInferencesInSyncWithModel
-            = areSparqlResultsInSyncWithModel = false;
-        ontModel = null;
-        ontModelNoInference = null;
+        invalidateModel();
       }
 
       enableControls(true);
