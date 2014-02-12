@@ -1,8 +1,5 @@
 package com.monead.semantic.workbench.images;
 
-import java.awt.Image;
-
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
 
 import org.apache.log4j.Logger;
