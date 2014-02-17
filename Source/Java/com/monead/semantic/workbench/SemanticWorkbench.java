@@ -56,7 +56,7 @@ import javax.swing.text.SimpleAttributeSet;
 import javax.swing.tree.*;
 
 import org.apache.log4j.Logger;
-import org.mindswap.pellet.jena.PelletReasonerFactory;
+//import org.mindswap.pellet.jena.PelletReasonerFactory;
 import org.mindswap.pellet.utils.VersionInfo;
 
 import com.hp.hpl.jena.ontology.ConversionException;
@@ -92,9 +92,10 @@ import com.monead.semantic.workbench.tree.WrapperDataProperty;
 import com.monead.semantic.workbench.tree.WrapperInstance;
 import com.monead.semantic.workbench.tree.WrapperLiteral;
 import com.monead.semantic.workbench.tree.WrapperObjectProperty;
+import com.monead.semantic.workbench.utilities.CheckLatestVersion;
+import com.monead.semantic.workbench.utilities.NewVersionInformation;
+import com.monead.semantic.workbench.utilities.ReasonerSelection;
 import com.monead.semantic.workbench.utilities.TextProcessing;
-
-//import com.sun.xml.internal.ws.model.WrapperParameter;
 
 /**
  * SemanticWorkbench - A GUI to input assertions, run an inferencing engine and
@@ -125,21 +126,17 @@ import com.monead.semantic.workbench.utilities.TextProcessing;
  * 
  *         TODO Add support for reading and writing RDF from URLs
  * 
- *         TODO Add support to write inferred triples to a file
- * 
  *         TODO Add support for SPARQL queries that use the model and URLs
- * 
- *         TODO Add support to read/write SPARQL queries from/to files
- * 
- *         TODO Add support to write SPARQL results to a file
- * 
- *         TODO Add support for a SPARQL endpoint using the reasoned model
- * 
- *         TODO Add support for an HTTP proxy for executing SPARQL queries
- *         against service endpoints
  * 
  *         TODO make the service dropdown a combo box and remember manually
  *         entered service urls
+ * 
+ *         TODO Allow editing of an ontology/model from the tree view (graphical
+ *         ontology editor)
+ * 
+ *         TODO Only use one model to support the diff function
+ *         
+ *         TODO Get Pellet working or drop support for it
  * 
  */
 public class SemanticWorkbench extends JFrame implements Runnable,
@@ -147,12 +144,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public final static String VERSION = "1.8.1";
+  public final static String VERSION = "1.8.4";
 
   /**
    * Serial UID
    */
-  private final static long serialVersionUID = 20140210;
+  private final static long serialVersionUID = 20140216;
 
   /**
    * The set of formats that can be loaded. These are defined by Jena
@@ -200,11 +197,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           "prefix xsd: <http://www.w3.org/2001/XMLSchema#>",
           "prefix dc: <http://purl.org/dc/elements/1.1/>", } };
 
+  // /**
+  // * The set of reasoning levels that will be compared.
+  // */
+  // protected final static String[] REASONING_LEVELS = { "None", "RDFS/RDFS",
+  // "RDFS/Trans", "OWL/RDFS", "OWL/Trans", "OWL/OWL Lite" };
+  // "OWL Trans (Jena)", "OWL Lite (Jena)" }; // , "OWL (Pellet)" };
+
   /**
-   * The set of reasoning levels that will be compared.
+   * The set of reasoners that are supported
    */
-  protected final static String[] REASONING_LEVELS = { "None", "RDFS",
-      "OWL Trans (Jena)", "OWL Lite (Jena)" }; // , "OWL (Pellet)" };
+  private static List<ReasonerSelection> REASONER_SELECTIONS;
 
   /**
    * Constant used if a value cannot be found in an array
@@ -669,6 +672,41 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private boolean areSparqlResultsInSyncWithModel;
 
   /**
+   * Setup static information
+   */
+  static {
+    REASONER_SELECTIONS = new ArrayList<ReasonerSelection>();
+
+    REASONER_SELECTIONS.add(new ReasonerSelection("OWL DL/None",
+        "An OWL DL model which does no entailment reasoning",
+        OntModelSpec.OWL_DL_MEM));
+    REASONER_SELECTIONS
+        .add(new ReasonerSelection(
+            "RDFS/RDFS",
+            "A RDFS model which uses the RDFS inferencer for additional entailments",
+            OntModelSpec.RDFS_MEM_RDFS_INF));
+    REASONER_SELECTIONS.add(new ReasonerSelection("RDFS/Transitive",
+        "A RDFS model which uses the transitive reasoner for entailments",
+        OntModelSpec.RDFS_MEM_TRANS_INF));
+    REASONER_SELECTIONS
+        .add(new ReasonerSelection(
+            "OWL DL/RDFS",
+            "An OWL DL model which uses the RDFS inferencer for additional entailments",
+            OntModelSpec.OWL_DL_MEM_RDFS_INF));
+    REASONER_SELECTIONS
+        .add(new ReasonerSelection(
+            "OWL DL/Transitive",
+            "An OWL DL model which uses the transitive inferencer for additional entailments",
+            OntModelSpec.OWL_DL_MEM_TRANS_INF));
+    REASONER_SELECTIONS
+        .add(new ReasonerSelection(
+            "OWL DL/OWL",
+            "An OWL DL model which uses the OWL rules inference engine for additional entailments",
+            OntModelSpec.OWL_DL_MEM_RULE_INF));
+
+  }
+
+  /**
    * Set up the application's UI
    */
   public SemanticWorkbench() {
@@ -689,6 +727,19 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     sizing();
     setStatus("");
     setVisible(true);
+
+    checkForNewVersion();
+
+  }
+
+  /**
+   * Check for a new version. The checking class will notify this class if a
+   * newer version is available.
+   */
+  private void checkForNewVersion() {
+    CheckLatestVersion versionCheck = new CheckLatestVersion(VERSION);
+    versionCheck.addObserver(this);
+    new Thread(versionCheck).start();
   }
 
   private void setIcons() {
@@ -813,8 +864,20 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     value = properties.getProperty(PROP_INPUT_LANGUAGE, "?");
     language.setSelectedItem(value);
 
-    value = properties.getProperty(PROP_REASONING_LEVEL, "?");
-    reasoningLevel.setSelectedItem(value);
+    value = properties.getProperty(PROP_REASONING_LEVEL, "-1");
+    try {
+      Integer index = Integer.parseInt(value);
+      if (index < 0 || index >= reasoningLevel.getItemCount()) {
+        throw new IllegalArgumentException(
+            "Incorrect reasoning level index property value: " + value);
+      }
+      reasoningLevel.setSelectedIndex(index);
+    } catch (Throwable throwable) {
+      LOGGER.warn("Index for reasoner level must be a number from zero to "
+          + (reasoningLevel.getItemCount() - 1));
+    }
+    reasoningLevel.setToolTipText(((ReasonerSelection) reasoningLevel
+        .getSelectedItem()).getDescription());
 
     value = properties.getProperty(PROP_OUTPUT_FORMAT, "?");
     for (JCheckBoxMenuItem outputLanguage : setupOutputAssertionLanguage) {
@@ -1136,7 +1199,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .toString());
 
     properties.setProperty(PROP_REASONING_LEVEL, reasoningLevel
-        .getSelectedItem().toString());
+        .getSelectedIndex() + "");
 
     for (JCheckBoxMenuItem outputLanguage : setupOutputAssertionLanguage) {
       if (outputLanguage.isSelected()) {
@@ -1468,7 +1531,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     // First Row (reasoning level and input language)
     flowPanel = new JPanel();
     flowPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
-    flowPanel.add(new JLabel("Reasoning Level:"));
+    flowPanel.add(new JLabel("Model/Reasoning:"));
     flowPanel.add(reasoningLevel);
     gridPanel.add(flowPanel);
 
@@ -2305,8 +2368,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       newModel.add(ontModel.getBaseModel());
       SparqlServer.getInstance().setModel(newModel);
     } else {
-      LOGGER.warn("There is not model to set on the SPARQL server");
-      setStatus("There is not model to set on the SPARQL server");
+      LOGGER.warn("There is no model to set on the SPARQL server");
+      setStatus("There is no model to set on the SPARQL server");
     }
   }
 
@@ -2405,10 +2468,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     LOGGER.debug("setupControls");
 
     reasoningLevel = new JComboBox();
-    for (String level : REASONING_LEVELS) {
-      reasoningLevel.addItem(level);
+    for (ReasonerSelection reasoner : REASONER_SELECTIONS) {
+      reasoningLevel.addItem(reasoner);
     }
     reasoningLevel.setSelectedIndex(reasoningLevel.getItemCount() - 1);
+    reasoningLevel.setToolTipText(((ReasonerSelection) reasoningLevel
+        .getSelectedItem()).getDescription());
     reasoningLevel.addActionListener(new ReasonerConfigurationChange());
 
     language = new JComboBox();
@@ -2429,7 +2494,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     sparqlServerInfo = new JLabel("Shutdown");
     sparqlServerInfo.setHorizontalAlignment(SwingConstants.CENTER);
-    sparqlServerInfo.setBorder(BorderFactory.createTitledBorder("SPARQL Server Status"));
+    sparqlServerInfo.setBorder(BorderFactory
+        .createTitledBorder("SPARQL Server Status"));
 
     proxyInfo = new JLabel("Disabled");
     proxyInfo.setHorizontalAlignment(SwingConstants.CENTER);
@@ -2961,7 +3027,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * @return The known reasoning levels as a CSV list
    */
   public final static String getReasoningLevelsAsCSV() {
-    return getArrayAsCSV(REASONING_LEVELS);
+    return getArrayAsCSV(REASONER_SELECTIONS.toArray());
   }
 
   /**
@@ -2971,16 +3037,16 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          An array
    * @return The array values in a CSV list
    */
-  public final static String getArrayAsCSV(String[] array) {
+  public final static String getArrayAsCSV(Object[] array) {
     StringBuffer csv;
 
     csv = new StringBuffer();
 
-    for (String value : array) {
+    for (Object value : array) {
       if (csv.length() > 0) {
         csv.append(", ");
       }
-      csv.append(value);
+      csv.append(value.toString());
     }
 
     return csv.toString();
@@ -3061,45 +3127,55 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * Create a model with a reasoner set based on the chosen reasoning level.
    * 
-   * @param reasoningLevel
-   *          The reasoning level for this model
+   * @param whichReasoner
+   *          The reasoner from the REASONER_SELECTIONS list to be used with
+   *          this model
    * 
    * @return The created ontology model
    */
-  private OntModel createModel(String reasoningLevelName) {
+  // private OntModel createModel(String reasoningLevelName) {
+  private OntModel createModel(int whichReasoner) {
     OntModel model;
-    int reasoningLevelIndex;
+    // int reasoningLevelIndex;
 
     model = null;
 
-    LOGGER.debug("Create model using reasoning level: "
-        + reasoningLevelName);
+    // LOGGER.debug("Create model using reasoning level: "
+    // + reasoningLevelName);
 
-    reasoningLevelIndex = getReasoningLevelIndex(reasoningLevelName);
+    /*
+     * reasoningLevelIndex = getReasoningLevelIndex(reasoningLevelName);
+     * 
+     * LOGGER.debug("Reasoning level index: " + reasoningLevelIndex);
+     * if (reasoningLevelIndex == 0) { // None
+     * model = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
+     * } else if (reasoningLevelIndex == 1) { // RDFS
+     * model = ModelFactory
+     * .createOntologyModel(OntModelSpec.RDFS_MEM_RDFS_INF);
+     * } else if (reasoningLevelIndex == 2) { // OWL Trans(Jena)
+     * model = ModelFactory
+     * .createOntologyModel(OntModelSpec.OWL_DL_MEM_TRANS_INF);
+     * } else if (reasoningLevelIndex == 3) { // OWL Lite (Jena)
+     * model = ModelFactory
+     * .createOntologyModel(OntModelSpec.OWL_DL_MEM_RULE_INF);//
+     * OWL_MEM_RULE_INF);//LITE_MEM_TRANS_INF);
+     * } else if (reasoningLevelIndex == 4) { // OWL (Pellet)
+     * // Reasoner reasoner = PelletReasonerFactory.theInstance().create();
+     * // Model infModel = ModelFactory.createInfModel(reasoner, ModelFactory
+     * // .createDefaultModel());
+     * // model = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM,
+     * // infModel);
+     * 
+     * // create an empty ontology model using Pellet spec
+     * model = ModelFactory.createOntologyModel(PelletReasonerFactory.THE_SPEC);
+     * }
+     */
 
-    LOGGER.debug("Reasoning level index: " + reasoningLevelIndex);
-    if (reasoningLevelIndex == 0) { // None
-      model = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
-    } else if (reasoningLevelIndex == 1) { // RDFS
-      model = ModelFactory
-          .createOntologyModel(OntModelSpec.OWL_DL_MEM_RDFS_INF);
-    } else if (reasoningLevelIndex == 2) { // OWL Trans(Jena)
-      model = ModelFactory
-          .createOntologyModel(OntModelSpec.OWL_DL_MEM_TRANS_INF);
-    } else if (reasoningLevelIndex == 3) { // OWL Lite (Jena)
-      model = ModelFactory
-          .createOntologyModel(OntModelSpec.OWL_DL_MEM_RULE_INF);// OWL_MEM_RULE_INF);//LITE_MEM_TRANS_INF);
-    } else if (reasoningLevelIndex == 4) { // OWL (Pellet)
-      // Reasoner reasoner = PelletReasonerFactory.theInstance().create();
-      // Model infModel = ModelFactory.createInfModel(reasoner, ModelFactory
-      // .createDefaultModel());
-      // model = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM,
-      // infModel);
+    LOGGER.debug("Create reasoner: "
+        + REASONER_SELECTIONS.get(whichReasoner).getName());
 
-      // create an empty ontology model using Pellet spec
-      model = ModelFactory.createOntologyModel(PelletReasonerFactory.THE_SPEC);
-    }
-
+    model = ModelFactory.createOntologyModel(REASONER_SELECTIONS.get(
+        whichReasoner).getJenaSpecification());
     model.setStrictMode(setupEnableStrictMode.isSelected());
 
     return model;
@@ -3173,14 +3249,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       LOGGER.debug("Start no inferencing model load and setup");
       inputStream = new ByteArrayInputStream(assertions.getText()
           .getBytes("UTF-8"));
-      ontModelNoInference = createModel("NONE");
+      ontModelNoInference = createModel(0);
       ontModelNoInference.read(inputStream, null, format.toUpperCase());
 
       LOGGER.debug("Start " + reasoningLevel.getSelectedItem().toString()
           + " model load and setup");
       inputStream = new ByteArrayInputStream(assertions.getText()
           .getBytes("UTF-8"));
-      ontModel = createModel(reasoningLevel.getSelectedItem().toString());
+      ontModel = createModel(reasoningLevel.getSelectedIndex());
       ontModel.read(inputStream, null, format.toUpperCase());
       LOGGER.debug(reasoningLevel.getSelectedItem().toString()
           + " model load and setup completed");
@@ -3198,7 +3274,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * @see OntologyTreeCellRenderer
    * 
-   * TODO aggregate items from duplicate nodes
+   *      TODO aggregate items from duplicate nodes
    */
   private String createTreeFromModel() {
     String messagePrefix = "Creating the tree view";
@@ -3248,7 +3324,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           "Setting up the class list", 0, ontClasses.size());
       Collections.sort(ontClasses, new OntClassComparator());
       if (LOGGER.isTraceEnabled()) {
-        LOGGER.trace("List of classes sorted");
+        LOGGER
+            .trace("List of classes sorted. Num classes:" + ontClasses.size());
       }
 
       classNumber = 0;
@@ -3476,20 +3553,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
-   * Get the index position of the supplied reasoning level label
-   * 
-   * @param reasonerName
-   *          A reasoning level label
-   * 
-   * @return The index position of the reasoning level. Will be equal to the
-   *         constant UNKNOWN if the value cannot be found in the collection
-   *         of known reasoning levels
-   */
-  public final static int getReasoningLevelIndex(String reasonerName) {
-    return getIndexValue(REASONING_LEVELS, reasonerName);
-  }
-
-  /**
    * Find a String value within an array of Strings. Return the index position
    * where the value was found.
    * 
@@ -3667,6 +3730,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private void invalidateModel() {
     ontModel = null;
     ontModelNoInference = null;
+
+    reasoningLevel.setToolTipText(((ReasonerSelection) reasoningLevel
+        .getSelectedItem()).getDescription());
 
     isTreeInSyncWithModel = areInferencesInSyncWithModel
         = areSparqlResultsInSyncWithModel = false;
@@ -4097,6 +4163,23 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         : FORMATS[selectedItem - 1];
   }
 
+  private void notifyNewerVersion(NewVersionInformation newVersionInformation) {
+    JOptionPane.showMessageDialog(
+        this,
+        "There is a newer version of Semantic Workbench Available\n"
+            + "You are running version " + VERSION
+            + " and the latest version is "
+            + newVersionInformation.getLatestVersion()
+            + "\n\n"
+            + newVersionInformation.getDownloadInformation()
+            + "\n\n"
+            + "New features include:\n"
+            + newVersionInformation.getNewFeaturesDescription(),
+        "Newer Version Available (" + VERSION + "->"
+            + newVersionInformation.getLatestVersion() + ")",
+        JOptionPane.INFORMATION_MESSAGE);
+  }
+
   /**
    * Insert standard prefixes in the assertions text area.
    * 
@@ -4463,6 +4546,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     if (o instanceof SparqlServer) {
       updateSparqlServerInfo();
+    } else if (o instanceof CheckLatestVersion) {
+      notifyNewerVersion((NewVersionInformation) arg);
     }
   }
 
