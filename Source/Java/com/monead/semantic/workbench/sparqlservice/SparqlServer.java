@@ -49,7 +49,12 @@ public class SparqlServer extends Observable implements Runnable {
    * The number of connections processed by this server
    */
   private long connectionsHandled;
-
+  
+  /**
+   * Flag indicating that the server is starting up
+   */
+  private boolean isStarting;
+    
   /**
    * The port used to accept requests
    */
@@ -87,13 +92,6 @@ public class SparqlServer extends Observable implements Runnable {
    *           If there is no model configured for the server
    */
   public void run() {
-    if (model == null) {
-      throw new IllegalStateException(
-          "No model has been configured for the server");
-    }
-
-    connectionsHandled = 0;
-
     try {
       serverSocket = new ServerSocket(getListenerPort());
     } catch (Throwable throwable) {
@@ -101,10 +99,12 @@ public class SparqlServer extends Observable implements Runnable {
       throw new IllegalStateException("Unable to setup SPARQL server endpoint",
           throwable);
     }
+    finally {
+      isStarting = false;
+    }
 
     while (true) {
       try {
-        ++connectionsHandled;
         processRequest(serverSocket.accept());
       } catch (SocketException se) {
         LOGGER.info("SparqlServer shutdown", se);
@@ -122,6 +122,7 @@ public class SparqlServer extends Observable implements Runnable {
    *          The connection for the request
    */
   private synchronized void processRequest(Socket connection) {
+    ++connectionsHandled;
     Thread thread = new Thread(new SparqlRunner(connection, model,
         maxRuntimeSeconds));
     thread.setName("SPARQL Request Handler-" + connectionsHandled);
@@ -141,6 +142,22 @@ public class SparqlServer extends Observable implements Runnable {
   }
 
   /**
+   * Start up the server
+   */
+  public void start() {
+    if (model == null) {
+      LOGGER.fatal("No model has been configured for the SPARQL server");
+      throw new IllegalStateException(
+          "No model has been configured for the server");
+    }
+
+    isStarting = true;
+    connectionsHandled = 0;
+    
+    new Thread(this).start();
+  }
+
+  /**
    * Stop the server. This also clears the model.
    */
   public void stop() {
@@ -154,14 +171,14 @@ public class SparqlServer extends Observable implements Runnable {
       LOGGER.error("Error closing SparqlServer", throwable);
     }
   }
-
+  
   /**
    * Checks to see if the server is active.
    * 
    * @return True if the server is active (listening for requests)
    */
   public boolean isActive() {
-    return serverSocket != null;
+    return isStarting || serverSocket != null;
   }
 
   /**
@@ -189,7 +206,7 @@ public class SparqlServer extends Observable implements Runnable {
    * 
    * @return The number of connections handled
    */
-  public long getConnectionsHandled() {
+  public synchronized long getConnectionsHandled() {
     return connectionsHandled;
   }
 

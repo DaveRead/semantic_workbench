@@ -75,7 +75,7 @@ public class SparqlRunner implements Runnable {
       connection.close();
       timer.cancel();
     } catch (ThreadDeath death) {
-      LOGGER.warn("Log running SPARQL query killed by timeout", death);
+      LOGGER.warn("Long running SPARQL query killed by timeout", death);
       throw death;
     } catch (Throwable throwable) {
       LOGGER.error("Error processing request", throwable);

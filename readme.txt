@@ -29,7 +29,7 @@ The tool has continued to mature and has the following features:
 
 7) Execute SPARQL queries against the local model
 
-8) Execute SPARQL queries from remove RDF sources and SPARQL endpoints
+8) Execute SPARQL queries from remote RDF sources and SPARQL endpoints
 
 9) Run a SPARQL server which uses a reasoned model to respond to queries
 
