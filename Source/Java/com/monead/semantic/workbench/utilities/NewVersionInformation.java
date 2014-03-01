@@ -1,5 +1,6 @@
 package com.monead.semantic.workbench.utilities;
 
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +13,8 @@ import java.util.List;
 public class NewVersionInformation {
   private String latestVersionString;
   private List<String> newFeatures = new ArrayList<String>();
+  private URL urlToDownloadPage;
+  private URL urlToSourceCode;
 
   /**
    * No operation
@@ -28,10 +31,23 @@ public class NewVersionInformation {
    * @return Instructions for obtaining a new version
    */
   public String getDownloadInformation() {
-    return "The latest installer is at:\n"
-        + "  - http://monead.com/semantic/semantic_workbench\n\n"
-        + "The source code is on GitHub at:\n"
-        + "  - https://github.com/DaveRead/semantic_workbench";
+    StringBuilder message;
+    
+    message = new StringBuilder();
+    
+    if (getUrlToDownloadPage() != null) {
+      message.append("The latest installer is located at:\n");
+      message.append(getUrlToDownloadPage().toString());
+      message.append("\n");
+    }
+    
+    if (getUrlToSourceCode() != null) {
+      message.append("The source code is located at:\n");
+      message.append(getUrlToSourceCode().toString());
+      message.append("\n");
+    }
+    
+    return message.toString();
   }
 
   /**
@@ -77,5 +93,47 @@ public class NewVersionInformation {
    */
   public void addNewFeatureMessage(String newFeatureMessage) {
     newFeatures.add("  * " + newFeatureMessage);
+  }
+
+  /**
+   * Get the URL for the application's download page. This will be null if the
+   * value could not be loaded.
+   * 
+   * @return The URL to the program download web page. It will be null if the
+   *         information could not be loaded.
+   */
+  public URL getUrlToDownloadPage() {
+    return urlToDownloadPage;
+  }
+
+  /**
+   * Set the URL for the application's download web page.
+   * 
+   * @param urlToDownloadPage
+   *          The URL for the program's download page
+   */
+  public void setUrlToDownloadPage(URL urlToDownloadPage) {
+    this.urlToDownloadPage = urlToDownloadPage;
+  }
+
+  /**
+   * Get the URL for the application's source code repository location. This
+   * will be null if the value could not be loaded.
+   * 
+   * @return The URL to the program's source code download location. It will be
+   *         null if the information could not be loaded.
+   */
+  public URL getUrlToSourceCode() {
+    return urlToSourceCode;
+  }
+
+  /**
+   * Set the URL for the application's source code location
+   * 
+   * @param urlToSourceCode
+   *          The URL for the program's source code location
+   */
+  public void setUrlToSourceCode(URL urlToSourceCode) {
+    this.urlToSourceCode = urlToSourceCode;
   }
 }

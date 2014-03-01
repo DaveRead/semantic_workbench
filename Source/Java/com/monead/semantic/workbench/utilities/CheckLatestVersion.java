@@ -160,6 +160,16 @@ public class CheckLatestVersion extends Observable implements Runnable {
               newFeatures = true;
               if (newVersionInformation == null) {
                 newVersionInformation = new NewVersionInformation();
+                // TODO encode download locations into website info file
+                try {
+                  newVersionInformation.setUrlToDownloadPage(new URL(
+                      "http://monead.com/semantic/semantic_workbench"));
+                  newVersionInformation.setUrlToSourceCode(new URL(
+                      "https://github.com/DaveRead/semantic_workbench"));
+                } catch (Throwable throwable) {
+                  LOGGER.warn("Error configuring program download URLs",
+                      throwable);
+                }
               }
               if (version > latestVersionValue) {
                 latestVersionValue = version;
