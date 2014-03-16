@@ -1,14 +1,21 @@
 package com.monead.semantic.workbench;
 
-import java.awt.*;
-import java.awt.event.*;
-import javax.swing.*;
-
 import org.apache.log4j.Logger;
 
 import com.monead.semantic.workbench.utilities.GuiUtilities;
 
-import java.awt.HeadlessException;
+import java.awt.FlowLayout;
+import java.awt.GridLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
 
 /**
  * <p>
@@ -29,7 +36,6 @@ import java.awt.HeadlessException;
  */
 public class SparqlServerConfigurationDialog extends JDialog implements
     ActionListener {
-  
 
   /**
    * Serial UID
@@ -39,19 +45,53 @@ public class SparqlServerConfigurationDialog extends JDialog implements
   /**
    * Logger Instance
    */
-  private static Logger LOGGER = Logger.getLogger(SparqlServerConfigurationDialog.class);
-  
-  private final static String[] MAX_TIME_OPTIONS = { "15", "30", "60", "120",
-      "600" };
+  private static final Logger LOGGER = Logger
+      .getLogger(SparqlServerConfigurationDialog.class);
 
+  /**
+   * The set of allowed maximum processing time selectiolns
+   */
+  private static final String[] MAX_TIME_OPTIONS = {
+      "15", "30", "60", "120", "600"
+  };
+
+  /**
+   * The port number to listen on
+   */
   private JTextField portNumber;
+
+  /**
+   * The maximum runtime for a query
+   */
   private JComboBox maxRuntime;
-  private JButton okay, cancel;
+
+  /**
+   * The OK button
+   */
+  private JButton okay;
+
+  /**
+   * The cancel button
+   */
+  private JButton cancel;
+
+  /**
+   * Whether the user pressed the OK button (accepted the changes)
+   */
   private boolean accepted;
 
+  /**
+   * Create a dialog for setting SPARQL server configuration options
+   * 
+   * @param parent
+   *          The parent frame
+   * @param currentPort
+   *          The current port number
+   * @param currentMaxRuntime
+   *          The current maximum query runtime
+   */
   public SparqlServerConfigurationDialog(JFrame parent, int currentPort,
-      int currentMaxRuntime)
-      throws HeadlessException {
+      int currentMaxRuntime) {
     super(parent, "SPARQL Server Configuration", true);
 
     setupGui(currentPort, currentMaxRuntime);
@@ -60,6 +100,14 @@ public class SparqlServerConfigurationDialog extends JDialog implements
     setVisible(true);
   }
 
+  /**
+   * Setup the graphical user interface, laying out the controls
+   * 
+   * @param currentPort
+   *          The current port number
+   * @param currentMaxRuntime
+   *          The current maximum query runtime
+   */
   private void setupGui(int currentPort,
       int currentMaxRuntime) {
     JPanel tempPanel;
@@ -74,7 +122,7 @@ public class SparqlServerConfigurationDialog extends JDialog implements
     tempPanel.setLayout(new GridLayout(0, 2));
     tempPanel.add(new JLabel("Server Port Number: "));
     tempPanel.add(portNumber = new JTextField(5));
-    
+
     portNumber.setText(currentPort + "");
 
     tempPanel.add(new JLabel("Max Query Runtime (seconds): "));
@@ -82,7 +130,7 @@ public class SparqlServerConfigurationDialog extends JDialog implements
     getContentPane().add(tempPanel);
 
     maxRuntime.setSelectedItem(currentMaxRuntime + "");
-    
+
     tempPanel = new JPanel();
     tempPanel.setLayout(new FlowLayout());
     tempPanel.add(okay = new JButton("OK"));
@@ -95,42 +143,60 @@ public class SparqlServerConfigurationDialog extends JDialog implements
     pack();
   }
 
+  /**
+   * Check whetyher the user pressed the OK button. Only meaningful if checked
+   * after the dialog is closed.
+   * 
+   * @return True if the user pressed the OK button
+   */
   public boolean isAccepted() {
     return accepted;
   }
 
+  /**
+   * Retrieve the port number entered into the dialog. This will be null if a
+   * non-numeric value is entered.
+   * 
+   * @return The entered port number.
+   */
   public Integer getPortNumber() {
     Integer value = null;
-    
+
     if (accepted) {
       try {
         value = Integer.parseInt(portNumber.getText());
-      }
-      catch (Throwable throwable) {
-        LOGGER.error("Illegal port number entered: " + portNumber.getText(), throwable);
+      } catch (Throwable throwable) {
+        LOGGER.error("Illegal port number entered: " + portNumber.getText(),
+            throwable);
         value = null;
       }
     }
-    
+
     return value;
   }
 
+  /**
+   * Get the maximum runtime entered by the user. If a non-numeric value is
+   * entered this will return null.
+   * 
+   * @return The maximum runtime entered
+   */
   public Integer getMaxRuntime() {
     Integer value;
-    
+
     try {
       value = Integer.parseInt((String) maxRuntime.getSelectedItem());
-    }
-    catch (Throwable throwable) {
-      LOGGER.error("Illegal maximum runtime entered: " + maxRuntime.getSelectedItem(), throwable);
+    } catch (Throwable throwable) {
+      LOGGER.error(
+          "Illegal maximum runtime entered: " + maxRuntime.getSelectedItem(),
+          throwable);
       value = null;
     }
-    
+
     return value;
   }
 
-  // Begin ActionListener Interface
-
+  @Override
   public void actionPerformed(ActionEvent what) {
     if (what.getSource() == okay) {
       accepted = true;
@@ -139,6 +205,4 @@ public class SparqlServerConfigurationDialog extends JDialog implements
       dispose();
     }
   }
-
-  // End ActionListener Interface
 }

@@ -23,14 +23,14 @@ public class FontData {
   /**
    * Create a FontData instance with the supplied Font and foreground Color.
    * 
-   * @param font
+   * @param pFont
    *          The Font instance
-   * @param color
+   * @param pColor
    *          The foreground Color instance
    */
-  public FontData(Font font, Color color) {
-    setFont(font);
-    setColor(color);
+  public FontData(Font pFont, Color pColor) {
+    setFont(pFont);
+    setColor(pColor);
   }
 
   /**

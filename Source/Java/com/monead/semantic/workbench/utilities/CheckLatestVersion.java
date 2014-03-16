@@ -25,17 +25,17 @@ public class CheckLatestVersion extends Observable implements Runnable {
   /**
    * URL to version information
    */
-  private final static String VERSION_INFO_URL = "http://monead.com/semantic/semantic_workbench/semantic_workbench_version.txt";
+  private static final String VERSION_INFO_URL = "http://monead.com/semantic/semantic_workbench/semantic_workbench_version.txt";
 
   /**
    * Logger Instance
    */
-  private static Logger LOGGER = Logger.getLogger(CheckLatestVersion.class);
+  private static final Logger LOGGER = Logger.getLogger(CheckLatestVersion.class);
 
   /**
    * Maximum number of lines in the upgrade message
    */
-  private static int MAX_NEW_FEATURES_MESSAGE_LINES = 10;
+  private static final int MAX_NEW_FEATURES_MESSAGE_LINES = 10;
 
   /**
    * The current version of the application
@@ -53,17 +53,17 @@ public class CheckLatestVersion extends Observable implements Runnable {
    * Information regarding the newest version. This is only created if there is
    * a newer version than the currently running version.
    */
-  NewVersionInformation newVersionInformation = null;
+  private NewVersionInformation newVersionInformation;
 
   /**
    * Create an instance that will identify if a version newer than the supplied
    * one exists.
    * 
-   * @param currentVersion
+   * @param pCurrentVersion
    *          The current version (#.#.# format)
    */
-  public CheckLatestVersion(String currentVersion) {
-    this.currentVersion = currentVersion;
+  public CheckLatestVersion(String pCurrentVersion) {
+    currentVersion = pCurrentVersion;
   }
 
   @Override
@@ -81,7 +81,7 @@ public class CheckLatestVersion extends Observable implements Runnable {
    * are newer than the current version.
    */
   private void setupVersionInfo() {
-    String latestVersionDetails = getVersionInfoFromWebsite();
+    final String latestVersionDetails = getVersionInfoFromWebsite();
 
     if (latestVersionDetails != null) {
       setupVersionMessage(latestVersionDetails);
@@ -97,23 +97,24 @@ public class CheckLatestVersion extends Observable implements Runnable {
     String informationFromWebsite = null;
 
     try {
-      URL url = new URL(VERSION_INFO_URL);
-      URLConnection con = url.openConnection();
-      Pattern p = Pattern.compile("text/html;\\s+charset=([^\\s]+)\\s*");
-      Matcher m = p.matcher(con.getContentType());
+      final URL url = new URL(VERSION_INFO_URL);
+      final URLConnection con = url.openConnection();
+      final Pattern p = Pattern.compile("text/html;\\s+charset=([^\\s]+)\\s*");
+      final Matcher m = p.matcher(con.getContentType());
 
       /*
        * If Content-Type doesn't match this pre-conception, choose default and
        * hope for the best.
        */
-      String charset = m.matches() ? m.group(1) : "UTF-8";
+      final String charset = m.matches() ? m.group(1) : "UTF-8";
 
-      Reader r = new InputStreamReader(con.getInputStream(), charset);
-      StringBuilder buf = new StringBuilder();
+      final Reader r = new InputStreamReader(con.getInputStream(), charset);
+      final StringBuilder buf = new StringBuilder();
       while (true) {
-        int ch = r.read();
-        if (ch < 0)
+        final int ch = r.read();
+        if (ch < 0) {
           break;
+        }
         buf.append((char) ch);
       }
       informationFromWebsite = buf.toString();
@@ -137,7 +138,7 @@ public class CheckLatestVersion extends Observable implements Runnable {
    *          Downloadeed version information
    */
   private void setupVersionMessage(String informationFromWebsite) {
-    int myVersion = versionParser(currentVersion);
+    final int myVersion = versionParser(currentVersion);
     String line = null;
     int lineNumber = 0;
     int version;
@@ -146,7 +147,7 @@ public class CheckLatestVersion extends Observable implements Runnable {
 
     try {
       if (informationFromWebsite != null) {
-        BufferedReader in = new BufferedReader(new StringReader(
+        final BufferedReader in = new BufferedReader(new StringReader(
             informationFromWebsite));
 
         while ((line = in.readLine()) != null) {
@@ -212,7 +213,7 @@ public class CheckLatestVersion extends Observable implements Runnable {
 
     LOGGER.debug("Calculate version number for version: " + version);
     try {
-      String parsed[] = version.split("\\.");
+      final String[] parsed = version.split("\\.");
       versionValue = Integer.parseInt(parsed[0]) * 10000;
       versionValue += Integer.parseInt(parsed[1]) * 100;
       versionValue += Integer.parseInt(parsed[2]);

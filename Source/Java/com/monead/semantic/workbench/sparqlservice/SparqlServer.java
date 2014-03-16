@@ -28,7 +28,17 @@ public class SparqlServer extends Observable implements Runnable {
   /**
    * Logger Instance
    */
-  private static Logger LOGGER = Logger.getLogger(SparqlServer.class);
+  private static final Logger LOGGER = Logger.getLogger(SparqlServer.class);
+
+  /**
+   * Default port number for the SPARQL server
+   */
+  private static final int DEFAULT_PORT = 5162;
+
+  /**
+   * Default maximum runtime allowed for a single query
+   */
+  private static final int DEFAULT_MAX_RUNTIME = 60;
 
   /**
    * Singleton instance
@@ -49,21 +59,21 @@ public class SparqlServer extends Observable implements Runnable {
    * The number of connections processed by this server
    */
   private long connectionsHandled;
-  
+
   /**
    * Flag indicating that the server is starting up
    */
   private boolean isStarting;
-    
+
   /**
    * The port used to accept requests
    */
-  private int listenerPort = 5162; // Default is 5162
+  private int listenerPort = DEFAULT_PORT;
 
   /**
    * The number of seconds to allow a query to run before killing it
    */
-  private int maxRuntimeSeconds = 60; // Default is 60
+  private int maxRuntimeSeconds = DEFAULT_MAX_RUNTIME;
 
   /**
    * Constructor - no operation
@@ -87,9 +97,6 @@ public class SparqlServer extends Observable implements Runnable {
 
   /**
    * Runs the server. A model MUST be set on the instance before running it.
-   * 
-   * @throws IllegalStateException
-   *           If there is no model configured for the server
    */
   public void run() {
     try {
@@ -98,8 +105,7 @@ public class SparqlServer extends Observable implements Runnable {
       LOGGER.error("Unable to setup SPARQL server endpoint", throwable);
       throw new IllegalStateException("Unable to setup SPARQL server endpoint",
           throwable);
-    }
-    finally {
+    } finally {
       isStarting = false;
     }
 
@@ -123,7 +129,7 @@ public class SparqlServer extends Observable implements Runnable {
    */
   private synchronized void processRequest(Socket connection) {
     ++connectionsHandled;
-    Thread thread = new Thread(new SparqlRunner(connection, model,
+    final Thread thread = new Thread(new SparqlRunner(connection, model,
         maxRuntimeSeconds));
     thread.setName("SPARQL Request Handler-" + connectionsHandled);
     thread.start();
@@ -134,11 +140,11 @@ public class SparqlServer extends Observable implements Runnable {
   /**
    * Sets the ontology model to be used for future requests
    * 
-   * @param model
+   * @param pModel
    *          The ontology model
    */
-  public synchronized void setModel(OntModel model) {
-    this.model = model;
+  public synchronized void setModel(OntModel pModel) {
+    model = pModel;
   }
 
   /**
@@ -153,7 +159,7 @@ public class SparqlServer extends Observable implements Runnable {
 
     isStarting = true;
     connectionsHandled = 0;
-    
+
     new Thread(this).start();
   }
 
@@ -171,7 +177,7 @@ public class SparqlServer extends Observable implements Runnable {
       LOGGER.error("Error closing SparqlServer", throwable);
     }
   }
-  
+
   /**
    * Checks to see if the server is active.
    * 
@@ -233,10 +239,10 @@ public class SparqlServer extends Observable implements Runnable {
    * Set the maximum runtime (in seconds) for processing a query before killing
    * it
    * 
-   * @param maxRuntimeSeconds
+   * @param pMaxRuntimeSeconds
    *          The maximum runtime for a query
    */
-  public void setMaxRuntimeSeconds(int maxRuntimeSeconds) {
-    this.maxRuntimeSeconds = maxRuntimeSeconds;
+  public void setMaxRuntimeSeconds(int pMaxRuntimeSeconds) {
+    maxRuntimeSeconds = pMaxRuntimeSeconds;
   }
 }

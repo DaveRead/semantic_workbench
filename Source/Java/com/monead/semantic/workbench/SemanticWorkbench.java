@@ -7,7 +7,6 @@ import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.FontMetrics;
 import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Rectangle;
@@ -47,8 +46,43 @@ import java.util.Observable;
 import java.util.Observer;
 import java.util.Properties;
 
-import javax.swing.*;
-import javax.swing.tree.*;
+import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
+import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JPasswordField;
+import javax.swing.JPopupMenu;
+import javax.swing.JRootPane;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.JTree;
+import javax.swing.KeyStroke;
+import javax.swing.ProgressMonitor;
+import javax.swing.ProgressMonitorInputStream;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.ToolTipManager;
+import javax.swing.WindowConstants;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
 
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.jena.atlas.web.auth.SimpleAuthenticator;
@@ -127,6 +161,10 @@ import com.monead.semantic.workbench.utilities.TextProcessing;
  * For information on Jena: http://jena.sourceforge.net/ For information on
  * Pellet: http://clarkparsia.com/pellet
  * 
+ * TODO Provide an option: When writing SPARQL results to a file, wrap URIs with
+ * <>,
+ * including data types on literals
+ * 
  * TODO Add support for SPARQL queries that use the model and URLs
  * 
  * TODO Allow editing of an ontology/model from the tree view (graphical
@@ -159,43 +197,99 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public final static String VERSION = "1.9.0";
+  public static final String VERSION = "1.9.2";
 
   /**
    * Serial UID
    */
-  private final static long serialVersionUID = 20140301;
+  private static final long serialVersionUID = 20140303;
 
   /**
    * The set of formats that can be loaded. These are defined by Jena
    */
-  private final static String[] FORMATS = { "N3", "N-Triples", "RDF/XML",
-      "Turtle" };
+  private static final String[] FORMATS = {
+      "N3", "N-Triples", "RDF/XML", "Turtle"
+  };
 
   /**
    * Tab number for the assertions
    */
-  private final static int TAB_NUMBER_ASSERTIONS = 0;
+  private static final int TAB_NUMBER_ASSERTIONS = 0;
 
   /**
    * Tab number for the inferences
    */
-  private final static int TAB_NUMBER_INFERENCES = 1;
+  private static final int TAB_NUMBER_INFERENCES = 1;
 
   /**
    * Tab number for the tree view
    */
-  private final static int TAB_NUMBER_TREE_VIEW = 2;
+  private static final int TAB_NUMBER_TREE_VIEW = 2;
 
   /**
    * Tab number for the SPARQL interactions
    */
-  private final static int TAB_NUMBER_SPARQL = 3;
+  private static final int TAB_NUMBER_SPARQL = 3;
+
+  /**
+   * Prefix of comment in saved SPARQL query to indicate the service URL used
+   */
+  private static final String SPARQL_QUERY_SAVE_SERVICE_URL_PARAM = "SERVICE_URL:";
+
+  /**
+   * Value to be used as the value for the service URL comment in saved SPARQL
+   * query to indicate that the local model (or service keyword) was used.
+   * This value should not be changed since it is stored in saved SPARQL query
+   * files to indicate the query is to be executed against the local model.
+   */
+  private static final String SPARQL_QUERY_SAVE_SERVICE_URL_VALUE_FOR_NO_SERVICE_URL = "N/A";
+
+  /**
+   * Text used to indicate a setting is not applicable
+   */
+  private static final String NOT_APPLICABLE_DISPLAY = "N/A";
+
+  /**
+   * Default value used for true/false property values set to true
+   */
+  private static final String DEFAULT_PROPERTY_VALUE_YES = "Yes";
+
+  /**
+   * Default value used for true/false property values set to false
+   */
+  private static final String DEFAULT_PROPERTY_VALUE_NO = "No";
+
+  /**
+   * Value to identify a Comma Separated Value export format
+   */
+  private static final String EXPORT_FORMAT_LABEL_CSV = "CSV";
+
+  /**
+   * Value to identify a Tab Separated Value export format
+   */
+  private static final String EXPORT_FORMAT_LABEL_TSV = "TSV";
+
+  /**
+   * Minimum allowed font size
+   */
+  private static final int MINIMUM_FONT_SIZE = 5;
+
+  /**
+   * Fraction of screen size the restored window dimension may occupy
+   */
+  private static final double MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE = 0.9;
+
+  /**
+   * Prefix of the comment in the saved SPARQL query to indicate the default
+   * graph URI used
+   */
+  private static final String SPARQL_QUERY_SAVE_SERVICE_DEFAULT_GRAPH_PARAM = "DEFAULT_GRAPH_URI:";
 
   /**
    * Logger Instance
    */
-  private static Logger LOGGER = Logger.getLogger(SemanticWorkbench.class);
+  private static final Logger LOGGER = Logger
+      .getLogger(SemanticWorkbench.class);
 
   /**
    * Standard prefixes
@@ -203,9 +297,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * In N3, N-Triples, RDF/XML and Turtle Order matches that of the FORMAT
    * array
    */
-  private final static String[][] STANDARD_PREFIXES = {
+  private static final String[][] STANDARD_PREFIXES = {
       // N3
-      { "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.",
+      {
+          "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.",
           "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.",
           "@prefix owl: <http://www.w3.org/2002/07/owl#>.",
           "@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.",
@@ -220,13 +315,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           "    xmlns:xsd=\"http://www.w3.org/2001/XMLSchema#\"",
           "    xmlns:dc=\"http://purl.org/dc/elements/1.1/\">" },
       // Turtle
-      { "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.",
+      {
+          "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.",
           "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.",
           "@prefix owl: <http://www.w3.org/2002/07/owl#>.",
           "@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.",
           "@prefix dc: <http://purl.org/dc/elements/1.1/>.", },
       // SPARQL
-      { "prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>",
+      {
+          "prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>",
           "prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>",
           "prefix owl: <http://www.w3.org/2002/07/owl#>",
           "prefix xsd: <http://www.w3.org/2001/XMLSchema#>",
@@ -250,38 +347,38 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The set of reasoners that are supported
    */
-  private static List<ReasonerSelection> REASONER_SELECTIONS;
+  private static final List<ReasonerSelection> REASONER_SELECTIONS;
 
   /**
    * Constant used if a value cannot be found in an array
    */
-  private final static int UNKNOWN = -1;
+  private static final int UNKNOWN = -1;
 
   /**
    * Maximum number of previous file names to retain
    */
-  private final static int MAX_PREVIOUS_FILES_TO_STORE = 10;
+  private static final int MAX_PREVIOUS_FILES_TO_STORE = 10;
 
   /**
    * The prefix for SPARQL results files exported with the direct export option
    */
-  private final static String SPARQL_DIRECT_EXPORT_FILE_PREFIX = "Sem_WB_SPARQL_Results_";
+  private static final String SPARQL_DIRECT_EXPORT_FILE_PREFIX = "Sem_WB_SPARQL_Results_";
 
   /**
    * Number format for presenting integers in comma-separated form
    */
-  private final static NumberFormat integerCommaFormat = new DecimalFormat(
+  private static final NumberFormat INTEGER_COMMA_FORMAT = new DecimalFormat(
       "#,##0");
 
   /**
    * Normal foreground color for a tab's text
    */
-  private final static Color NORMAL_TAB_FG = new Color(51, 51, 51);
+  private static final Color NORMAL_TAB_FG = new Color(51, 51, 51);
 
   /**
    * Normal background color for a tab
    */
-  private final static Color NORMAL_TAB_BG = new Color(184, 207, 229);
+  private static final Color NORMAL_TAB_BG = new Color(184, 207, 229);
 
   /**
    * Maximum number of bytes to load into the assertions text area.
@@ -291,50 +388,223 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * TODO provide a scrolling window over the entire file
    */
-  private final static long MAX_ASSERTION_BYTES_TO_LOAD_INTO_TEXT_AREA = 10 * 1024 * 1024;
+  private static final long MAX_ASSERTION_BYTES_TO_LOAD_INTO_TEXT_AREA = 10 * 1024 * 1024;
 
   /**
    * File name for the properties file
    */
-  private final static String PROPERTIES_FILE_NAME = "semantic_workbench.properties";
+  private static final String PROPERTIES_FILE_NAME = "semantic_workbench.properties";
 
-  private final static String PROP_LAST_TOP_X_POSITION = "LastTopPositionX";
-  private final static String PROP_LAST_TOP_Y_POSITION = "LastTopPositionY";
-  private final static String PROP_LAST_WIDTH = "LastWidth";
-  private final static String PROP_LAST_HEIGHT = "LastHeight";
-  private final static String PROP_LAST_DIRECTORY = "LastDirectory";
-  private final static String PROP_OUTPUT_FORMAT = "OutputFormat";
-  private final static String PROP_OUTPUT_CONTENT = "OutputContent";
-  private final static String PROP_SHOW_FQN_NAMESPACES = "ShowFqnNamespaces";
-  private final static String PROP_SHOW_DATATYPES_ON_LITERALS = "ShowDatatypesOnLiterals";
-  private final static String PROP_FLAG_LITERALS_IN_RESULTS = "FlagLiteralsInResults";
-  private final static String PROP_FONT_NAME = "FontName";
-  private final static String PROP_FONT_SIZE = "FontSize";
-  private final static String PROP_FONT_STYLE = "FontStyle";
-  private final static String PROP_FONT_COLOR = "FontColor";
-  private final static String PROP_PREFIX_SKIP_CLASS = "TreeClassToSkip_";
-  private final static String PROP_PREFIX_SKIP_PREDICATE = "TreePredicateToSkip_";
-  private final static String PROP_REASONING_LEVEL = "ReasoningLevel";
-  private final static String PROP_INPUT_LANGUAGE = "InputFormat";
-  private final static String PROP_PREFIX_RECENT_ASSERTIONS_FILE = "RecentAssertedTriplesFile_";
-  private final static String PROP_PREFIX_RECENT_SPARQL_QUERY_FILE = "RecentSparqlQueryFile_";
-  private final static String PROP_ENFORCE_FILTERS_IN_TREE_VIEW = "EnforceTreeViewFilters";
-  private final static String PROP_DISPLAY_ANONYMOUS_NODES_IN_TREE_VIEW = "ShowAnonymousNodesInTreeView";
-  private final static String PROP_ENABLE_STRICT_MODE = "EnableStrictMode";
-  private final static String PROP_EXPORT_SPARQL_RESULTS_FORMAT = "SparqlResultsExportFormat";
-  private final static String PROP_SPARQL_SERVER_PORT = "SparqlServerPort";
-  private final static String PROP_SPARQL_SERVER_MAX_RUNTIME = "SparqlServerMaxRuntimeSeconds";
-  private final static String PROP_PROXY_SERVER = "ProxyServer";
-  private final static String PROP_PROXY_PORT = "ProxyPort";
-  private final static String PROP_PROXY_HTTP = "ProxyHttpRequested";
-  private final static String PROP_PROXY_SOCKS = "ProxySocksRequested";
-  private final static String PROP_PROXY_ENABLED = "ProxyIsEnabled";
-  private final static String PROP_SPARQL_SERVICE_USER_ID = "SparqlServiceUserId";
-  private final static String PROP_SPARQL_DEFAULT_GRAPH_URI = "SparqlDefaultGraphUri";
-  private final static String PROP_PREFIX_SPARQL_SERVICE_URL = "SparqlServiceUrl_";
-  private final static String PROP_SELECTED_SPARQL_SERVICE_URL = "SparqlServiceSelectedIndex";
-  private final static String PROP_SPARQL_RESULTS_TO_FILE = "SparqlResultsToFile";
-  private final static String PROP_SPARQL_SPLIT_PANE_POSITION = "SparqlSplitPanePosition";
+  /**
+   * Property file property name: store the last top X location of the main
+   * window
+   */
+  private static final String PROP_LAST_TOP_X_POSITION = "LastTopPositionX";
+
+  /**
+   * Property file property name: store the last top Y location of the main
+   * window
+   */
+  private static final String PROP_LAST_TOP_Y_POSITION = "LastTopPositionY";
+
+  /**
+   * Property file property name: store the last width of the main window
+   */
+  private static final String PROP_LAST_WIDTH = "LastWidth";
+
+  /**
+   * Property file property name: store the last height of the main window
+   */
+  private static final String PROP_LAST_HEIGHT = "LastHeight";
+
+  /**
+   * Property file property name: store the last directory read/written
+   */
+  private static final String PROP_LAST_DIRECTORY = "LastDirectory";
+
+  /**
+   * Property file property name: store the last output format chosen
+   */
+  private static final String PROP_OUTPUT_FORMAT = "OutputFormat";
+
+  /**
+   * Property file property name: store the last model output selection chosen
+   * (assertions versus assertions and inferences)
+   */
+  private static final String PROP_OUTPUT_CONTENT = "OutputContent";
+
+  /**
+   * Property file property name: store the last FQN display setting
+   */
+  private static final String PROP_SHOW_FQN_NAMESPACES = "ShowFqnNamespaces";
+
+  /**
+   * Property file property name: store the last datatype display setting
+   */
+  private static final String PROP_SHOW_DATATYPES_ON_LITERALS = "ShowDatatypesOnLiterals";
+
+  /**
+   * Property file property name: store the last literal flag display setting
+   */
+  private static final String PROP_FLAG_LITERALS_IN_RESULTS = "FlagLiteralsInResults";
+
+  /**
+   * Property file property name: store the last font setting
+   */
+  private static final String PROP_FONT_NAME = "FontName";
+
+  /**
+   * Property file property name: store the last font size setting
+   */
+  private static final String PROP_FONT_SIZE = "FontSize";
+
+  /**
+   * Property file property name: store the last font style setting
+   */
+  private static final String PROP_FONT_STYLE = "FontStyle";
+
+  /**
+   * Property file property name: store the last font color setting
+   */
+  private static final String PROP_FONT_COLOR = "FontColor";
+
+  /**
+   * Property file property name: prefix for storing each class name to be
+   * skippe din the tree
+   */
+  private static final String PROP_PREFIX_SKIP_CLASS = "TreeClassToSkip_";
+
+  /**
+   * Property file property name: prefix for storing each predicate name to be
+   * skippe din the tree
+   */
+  private static final String PROP_PREFIX_SKIP_PREDICATE = "TreePredicateToSkip_";
+
+  /**
+   * Property file property name: store the last reasoning level setting
+   */
+  private static final String PROP_REASONING_LEVEL = "ReasoningLevel";
+
+  /**
+   * Property file property name: store the last assertions input format setting
+   */
+  private static final String PROP_INPUT_LANGUAGE = "InputFormat";
+
+  /**
+   * Property file property name: prefix for storing the set of recently
+   * accessed assertion files and URLs
+   */
+  private static final String PROP_PREFIX_RECENT_ASSERTIONS_FILE = "RecentAssertedTriplesFile_";
+
+  /**
+   * Property file property name: prefix for storing the set of recently
+   * accessed SPARQL query files
+   */
+  private static final String PROP_PREFIX_RECENT_SPARQL_QUERY_FILE = "RecentSparqlQueryFile_";
+
+  /**
+   * Property file property name: store the last tree view filter setting
+   */
+  private static final String PROP_ENFORCE_FILTERS_IN_TREE_VIEW = "EnforceTreeViewFilters";
+
+  /**
+   * Property file property name: store the last anonymous node display setting
+   */
+  private static final String PROP_DISPLAY_ANONYMOUS_NODES_IN_TREE_VIEW = "ShowAnonymousNodesInTreeView";
+
+  /**
+   * Property file property name: store the last strict reasoner mode setting
+   */
+  private static final String PROP_ENABLE_STRICT_MODE = "EnableStrictMode";
+
+  /**
+   * Property file property name: store the last SPARQL output format setting
+   */
+  private static final String PROP_EXPORT_SPARQL_RESULTS_FORMAT = "SparqlResultsExportFormat";
+
+  /**
+   * Property file property name: store the last SPARQL server configured port
+   * setting
+   */
+  private static final String PROP_SPARQL_SERVER_PORT = "SparqlServerPort";
+
+  /**
+   * Property file property name: store the last SPARQL server max query runtime
+   * setting
+   */
+  private static final String PROP_SPARQL_SERVER_MAX_RUNTIME = "SparqlServerMaxRuntimeSeconds";
+
+  /**
+   * Property file property name: store the last proxy server address setting
+   */
+  private static final String PROP_PROXY_SERVER = "ProxyServer";
+
+  /**
+   * Property file property name: store the last proxy server port setting
+   */
+  private static final String PROP_PROXY_PORT = "ProxyPort";
+
+  /**
+   * Property file property name: store the last proxy server HTTP proxied
+   * setting
+   */
+  private static final String PROP_PROXY_HTTP = "ProxyHttpRequested";
+
+  /**
+   * Property file property name: store the last proxy server SOCKS proxied
+   * setting
+   */
+  private static final String PROP_PROXY_SOCKS = "ProxySocksRequested";
+
+  /**
+   * Property file property name: store the last proxy server enabled setting
+   */
+  private static final String PROP_PROXY_ENABLED = "ProxyIsEnabled";
+
+  /**
+   * Property file property name: store the last SPARQL query user id used
+   */
+  private static final String PROP_SPARQL_SERVICE_USER_ID = "SparqlServiceUserId";
+
+  /**
+   * Property file property name: store the last SPARQL query default graph
+   * setting
+   */
+  private static final String PROP_SPARQL_DEFAULT_GRAPH_URI = "SparqlDefaultGraphUri";
+
+  /**
+   * Property file property name: prefix to store the set of known SPARQL
+   * service URLs
+   */
+  private static final String PROP_PREFIX_SPARQL_SERVICE_URL = "SparqlServiceUrl_";
+
+  /**
+   * Property file property name: store the last SPARQL query service setting
+   */
+  private static final String PROP_SELECTED_SPARQL_SERVICE_URL = "SparqlServiceSelectedIndex";
+
+  /**
+   * Property file property name: store the setting for writing SPARQL results
+   * directly to a file
+   */
+  private static final String PROP_SPARQL_RESULTS_TO_FILE = "SparqlResultsToFile";
+
+  /**
+   * Property file property name: store the last SPARQL tab split pane position
+   */
+  private static final String PROP_SPARQL_SPLIT_PANE_POSITION = "SparqlSplitPanePosition";
+
+  /**
+   * Property file property name: store the last SPARQL query image display
+   * setting
+   */
+  private static final String PROP_SPARQL_DISPLAY_IMAGES_IN_RESULTS = "SparqlDisplayImagesInResults";
+
+  /**
+   * Property file property name: store the last SPARQL query multiline results
+   * setting
+   */
+  private static final String PROP_SPARQL_DISPLAY_ALLOW_MULTILINE_OUTPUT = "SparqlDisplayAllowMultilineOutput";
 
   /**
    * Configuration properties
@@ -517,6 +787,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private JCheckBoxMenuItem setupOutputModelTypeAssertionsAndInferences;
 
   /**
+   * Allow multiple lines in the SPARQL result display cells
+   */
+  private JCheckBoxMenuItem setupAllowMultilineResultOutput;
+
+  /**
    * Show FQN for namespace instead of prefixes in SPARQL output
    */
   private JCheckBoxMenuItem setupOutputFqnNamespaces;
@@ -530,6 +805,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Flag literal values
    */
   private JCheckBoxMenuItem setupOutputFlagLiteralValues;
+
+  /**
+   * Display images in SPARQL results
+   */
+  private JCheckBoxMenuItem setupDisplayImagesInSparqlResults;
 
   /**
    * Export SPARQL results in a Comma Separated Value file
@@ -727,7 +1007,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Flag to indicate whether alternate images for the tree view have been
    * located
    */
-  private boolean replaceTreeImages = false;
+  private boolean replaceTreeImages;
 
   /**
    * The last directory where a file was opened or saved
@@ -851,7 +1131,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * newer version is available.
    */
   private void checkForNewVersion() {
-    CheckLatestVersion versionCheck = new CheckLatestVersion(VERSION);
+    final CheckLatestVersion versionCheck = new CheckLatestVersion(VERSION);
     versionCheck.addObserver(this);
     new Thread(versionCheck).start();
   }
@@ -861,7 +1141,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * program is running
    */
   private void setIcons() {
-    List<Image> icons = new ArrayList<Image>();
+    final List<Image> icons = new ArrayList<Image>();
 
     try {
       icons.add(ImageLibrary.instance()
@@ -893,9 +1173,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     int previousTopY = 0;
     double setHeight = this.getSize().getHeight();
     double setWidth = this.getSize().getWidth();
-    double screenHeight = Toolkit.getDefaultToolkit().getScreenSize()
+    final double screenHeight = Toolkit.getDefaultToolkit().getScreenSize()
         .getHeight();
-    double screenWidth = Toolkit.getDefaultToolkit().getScreenSize().getWidth();
+    final double screenWidth = Toolkit.getDefaultToolkit().getScreenSize()
+        .getWidth();
 
     try {
       previousHeight = Integer.parseInt(properties.getProperty(
@@ -922,12 +1203,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       setHeight = previousHeight;
       resizeRequired = true;
     } else {
-      if (screenHeight * .9 < setHeight) {
-        setHeight = screenHeight * .9;
+      if (screenHeight * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setHeight) {
+        setHeight = screenHeight
+            * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE;
         resizeRequired = true;
       }
-      if (screenWidth * .9 < setWidth) {
-        setWidth = screenWidth * .9;
+      if (screenWidth * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setWidth) {
+        setWidth = screenWidth * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE;
         resizeRequired = true;
       }
     }
@@ -988,7 +1270,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     value = properties.getProperty(PROP_REASONING_LEVEL, "-1");
     try {
-      Integer index = Integer.parseInt(value);
+      final Integer index = Integer.parseInt(value);
       if (index < 0 || index >= reasoningLevel.getItemCount()) {
         throw new IllegalArgumentException(
             "Incorrect reasoning level index property value: " + value);
@@ -1016,6 +1298,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       setupOutputModelTypeAssertions.setSelected(true);
     }
 
+    setupAllowMultilineResultOutput.setSelected(properties
+        .getProperty(PROP_SPARQL_DISPLAY_ALLOW_MULTILINE_OUTPUT, "Y")
+        .toUpperCase()
+        .startsWith("Y"));
     setupOutputFqnNamespaces.setSelected(properties
         .getProperty(PROP_SHOW_FQN_NAMESPACES, "Y").toUpperCase()
         .startsWith("Y"));
@@ -1023,12 +1309,16 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .getProperty(PROP_SHOW_DATATYPES_ON_LITERALS, "Y").toUpperCase()
         .startsWith("Y"));
     setupOutputFlagLiteralValues.setSelected(properties
-        .getProperty(PROP_FLAG_LITERALS_IN_RESULTS, "Y").toUpperCase()
+        .getProperty(PROP_FLAG_LITERALS_IN_RESULTS, "N").toUpperCase()
+        .startsWith("Y"));
+    setupDisplayImagesInSparqlResults.setSelected(properties
+        .getProperty(PROP_SPARQL_DISPLAY_IMAGES_IN_RESULTS, "N").toUpperCase()
         .startsWith("Y"));
 
     // SPARQL query export format - default to CSV
-    if (properties.getProperty(PROP_EXPORT_SPARQL_RESULTS_FORMAT, "CSV")
-        .equalsIgnoreCase("TSV")) {
+    if (properties.getProperty(PROP_EXPORT_SPARQL_RESULTS_FORMAT,
+        EXPORT_FORMAT_LABEL_CSV)
+        .equalsIgnoreCase(EXPORT_FORMAT_LABEL_TSV)) {
       setupExportSparqlResultsAsTsv.setSelected(true);
     } else {
       setupExportSparqlResultsAsCsv.setSelected(true);
@@ -1071,7 +1361,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     value = properties.getProperty(PROP_SPARQL_SPLIT_PANE_POSITION);
     if (value != null) {
       try {
-        int position = Integer.parseInt(value);
+        final int position = Integer.parseInt(value);
         if (position > 0) {
           sparqlQueryAndResults.setDividerLocation(position);
         }
@@ -1085,7 +1375,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     value = properties.getProperty(PROP_SPARQL_SERVER_PORT);
     if (value != null) {
       try {
-        Integer port = Integer.parseInt(value);
+        final Integer port = Integer.parseInt(value);
         if (port > 0) {
           SparqlServer.getInstance().setListenerPort(port);
         } else {
@@ -1104,7 +1394,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     value = properties.getProperty(PROP_SPARQL_SERVER_MAX_RUNTIME);
     if (value != null) {
       try {
-        Integer maxRuntimeSeconds = Integer.parseInt(value);
+        final Integer maxRuntimeSeconds = Integer.parseInt(value);
         if (maxRuntimeSeconds > 0) {
           SparqlServer.getInstance().setMaxRuntimeSeconds(maxRuntimeSeconds);
         } else {
@@ -1147,7 +1437,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * default list.
    */
   private void populateSparqlServiceUrls() {
-    List<String> prefixNames = new ArrayList<String>();
+    final List<String> prefixNames = new ArrayList<String>();
     boolean foundUrl;
     int lastSelectedIndex;
 
@@ -1207,7 +1497,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * files to update the assertions file menu.
    */
   private void extractRecentAssertedTriplesFilesFromProperties() {
-    List<String> prefixNames = new ArrayList<String>();
+    final List<String> prefixNames = new ArrayList<String>();
     String value;
     String[] parsed;
 
@@ -1260,7 +1550,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * files to update the SPARQL file menu.
    */
   private void extractRecentSparqlQueryFilesFromProperties() {
-    List<String> prefixNames = new ArrayList<String>();
+    final List<String> prefixNames = new ArrayList<String>();
 
     /**
      * Find any keys for previous files
@@ -1378,7 +1668,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * entries
    */
   private void editListOfSparqlServiceUrls() {
-    Map<String, String> urls = new HashMap<String, String>();
+    final Map<String, String> urls = new HashMap<String, String>();
     int sizeBefore;
     int currentSelectedIndex;
 
@@ -1428,11 +1718,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          The map whose entries are being edited
    */
   private void editFilterMap(Map<String, String> filterMap) {
-    List<String> filteredItems = new ArrayList<String>(filterMap.keySet());
+    final List<String> filteredItems = new ArrayList<String>(filterMap.keySet());
     int[] selectedIndices;
 
     Collections.sort(filteredItems);
-    JList jListOfItems = new JList(
+    final JList jListOfItems = new JList(
         filteredItems.toArray(new String[filteredItems.size()]));
     JOptionPane.showMessageDialog(this, jListOfItems, "Select Items to Remove",
         JOptionPane.QUESTION_MESSAGE);
@@ -1536,21 +1826,39 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           setupOutputModelTypeAssertions.getText());
     }
 
+    properties
+        .setProperty(
+            PROP_SPARQL_DISPLAY_ALLOW_MULTILINE_OUTPUT,
+            setupAllowMultilineResultOutput.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+                : DEFAULT_PROPERTY_VALUE_NO);
     properties.setProperty(PROP_SHOW_FQN_NAMESPACES,
-        setupOutputFqnNamespaces.isSelected() ? "Yes" : "No");
-    properties.setProperty(PROP_SHOW_DATATYPES_ON_LITERALS,
-        setupOutputDatatypesForLiterals.isSelected() ? "Yes" : "No");
+        setupOutputFqnNamespaces.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
+    properties
+        .setProperty(
+            PROP_SHOW_DATATYPES_ON_LITERALS,
+            setupOutputDatatypesForLiterals.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+                : DEFAULT_PROPERTY_VALUE_NO);
     properties.setProperty(PROP_FLAG_LITERALS_IN_RESULTS,
-        setupOutputFlagLiteralValues.isSelected() ? "Yes" : "No");
+        setupOutputFlagLiteralValues.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
+    properties
+        .setProperty(
+            PROP_SPARQL_DISPLAY_IMAGES_IN_RESULTS,
+            setupDisplayImagesInSparqlResults.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+                : DEFAULT_PROPERTY_VALUE_NO);
 
     if (setupExportSparqlResultsAsTsv.isSelected()) {
-      properties.setProperty(PROP_EXPORT_SPARQL_RESULTS_FORMAT, "TSV");
+      properties.setProperty(PROP_EXPORT_SPARQL_RESULTS_FORMAT,
+          EXPORT_FORMAT_LABEL_TSV);
     } else {
-      properties.setProperty(PROP_EXPORT_SPARQL_RESULTS_FORMAT, "CSV");
+      properties.setProperty(PROP_EXPORT_SPARQL_RESULTS_FORMAT,
+          EXPORT_FORMAT_LABEL_CSV);
     }
 
     properties.setProperty(PROP_SPARQL_RESULTS_TO_FILE,
-        setupSparqlResultsToFile.isSelected() ? "Yes" : "No");
+        setupSparqlResultsToFile.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
 
     if (sparqlServiceUserId.getText().trim().length() > 0) {
       properties.setProperty(PROP_SPARQL_SERVICE_USER_ID, sparqlServiceUserId
@@ -1567,19 +1875,23 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     properties.setProperty(PROP_ENABLE_STRICT_MODE,
-        setupEnableStrictMode.isSelected() ? "Yes" : "No");
+        setupEnableStrictMode.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
 
     properties.setProperty(PROP_ENFORCE_FILTERS_IN_TREE_VIEW,
-        filterEnableFilters.isSelected() ? "Yes" : "No");
+        filterEnableFilters.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
     properties.setProperty(PROP_DISPLAY_ANONYMOUS_NODES_IN_TREE_VIEW,
-        filterShowAnonymousNodes.isSelected() ? "Yes" : "No");
+        filterShowAnonymousNodes.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
 
     properties.setProperty(PROP_SPARQL_SERVER_PORT, SparqlServer.getInstance()
         .getListenerPort() + "");
     properties.setProperty(PROP_SPARQL_SERVER_MAX_RUNTIME, SparqlServer
         .getInstance().getMaxRuntimeSeconds() + "");
 
-    properties.setProperty(PROP_PROXY_ENABLED, proxyEnabled ? "Yes" : "No");
+    properties.setProperty(PROP_PROXY_ENABLED,
+        proxyEnabled ? DEFAULT_PROPERTY_VALUE_YES : DEFAULT_PROPERTY_VALUE_NO);
     if (proxyServer != null) {
       properties.setProperty(PROP_PROXY_SERVER, proxyServer);
     } else {
@@ -1592,8 +1904,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       properties.remove(PROP_PROXY_PORT);
     }
 
-    properties.setProperty(PROP_PROXY_HTTP, proxyProtocolHttp ? "Yes" : "No");
-    properties.setProperty(PROP_PROXY_SOCKS, proxyProtocolSocks ? "Yes" : "No");
+    properties.setProperty(PROP_PROXY_HTTP,
+        proxyProtocolHttp ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
+    properties.setProperty(PROP_PROXY_SOCKS,
+        proxyProtocolSocks ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
 
     try {
       writer = new FileWriter(getPropertiesDirectory() + "/"
@@ -1637,7 +1953,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          The property prefix for entries to be removed
    */
   private void removePrefixedProperties(String prefix) {
-    List<String> propertiesToBeRemoved = new ArrayList<String>();
+    final List<String> propertiesToBeRemoved = new ArrayList<String>();
 
     for (Object key : properties.keySet()) {
       if (key.toString().startsWith(prefix)) {
@@ -1688,7 +2004,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Get the path to the properties directory. Normally this is located within
    * the user's home directory.
    * 
-   * @return
+   * @return The directory name for the properties file
    */
   private String getPropertiesDirectory() {
     String home = System.getProperty("user.home");
@@ -1697,7 +2013,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       home = ".";
     } else {
       home += "/SemanticWorkbench";
-      File homeFile = new File(home);
+      final File homeFile = new File(home);
       if (!homeFile.exists()) {
         homeFile.mkdirs();
       }
@@ -1785,14 +2101,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private Font getFontFromProperties() {
     Font newFont = null;
-    String fontName = properties.getProperty(PROP_FONT_NAME, "Courier");
-    String fontSize = properties.getProperty(PROP_FONT_SIZE, "12");
-    String fontStyle = properties.getProperty(PROP_FONT_STYLE, "0");
+    final String fontName = properties.getProperty(PROP_FONT_NAME, "Courier");
+    final String fontSize = properties.getProperty(PROP_FONT_SIZE, "12");
+    final String fontStyle = properties.getProperty(PROP_FONT_STYLE, "0");
 
     try {
       newFont = new Font(fontName, Integer.parseInt(fontStyle),
           Integer.parseInt(fontSize));
-      if (newFont.getSize() < 5) {
+      if (newFont.getSize() < MINIMUM_FONT_SIZE) {
         throw new IllegalArgumentException("Font size too small: "
             + newFont.getSize());
       }
@@ -1811,7 +2127,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private Color getColorFromProperties() {
     Color newColor = null;
-    String colorRgb = properties.getProperty(PROP_FONT_COLOR,
+    final String colorRgb = properties.getProperty(PROP_FONT_COLOR,
         Color.BLACK.getRGB() + "");
 
     try {
@@ -1835,7 +2151,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          case it is ignored.
    */
   private void setFont(Font newFont, Color newColor) {
-    FontMetrics fontMetrics;
+    // FontMetrics fontMetrics;
     if (newFont != null) {
       assertionsInput.setFont(newFont);
       inferredTriples.setFont(newFont);
@@ -1843,9 +2159,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       ontModelTree.setFont(newFont);
       sparqlResultsTable.setFont(newFont);
       sparqlResultsTable.getTableHeader().setFont(newFont);
-      fontMetrics = sparqlResultsTable.getFontMetrics(newFont);
-      sparqlResultsTable.setRowHeight(((int) ((double) fontMetrics
-          .getHeight() * 1.1)));
+      final SparqlResultItemRenderer renderer = new SparqlResultItemRenderer(
+          setupAllowMultilineResultOutput.isSelected());
+      renderer.setFont(newFont);
+      sparqlResultsTable.setDefaultRenderer(SparqlResultItem.class, renderer);
+      ((AbstractTableModel) sparqlResultsTable.getModel())
+          .fireTableStructureChanged();
+      // fontMetrics = sparqlResultsTable.getFontMetrics(newFont);
+      // sparqlResultsTable.setRowHeight(((int) ((double) fontMetrics
+      // .getHeight() * 1.1)));
       status.setFont(newFont);
     }
 
@@ -2210,8 +2532,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void setupMenus() {
     JMenuBar menuBar;
-    JMenu menu;
-    ButtonGroup buttonGroup;
 
     menuBar = new JMenuBar();
     setJMenuBar(menuBar);
@@ -2235,11 +2555,35 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     setupSparqlFileMenu();
 
     // Edit Menu
-    menu = new JMenu("Edit");
+    menuBar.add(setupEditMenu());
+
+    // Configuration Menu
+    menuBar.add(setupConfigurationMenu());
+
+    // Model Menu
+    menuBar.add(setupModelMenu());
+
+    // Filters Menu
+    menuBar.add(setupFiltersMenu());
+
+    // SPARQL Server Menu
+    menuBar.add(setupSparqlServerMenu());
+
+    // Help Menu
+    menuBar.add(setupHelpMenu());
+  }
+
+  /**
+   * Create the edit menu
+   * 
+   * @return The edit menu
+   */
+  private JMenu setupEditMenu() {
+    final JMenu menu = new JMenu("Edit");
+
     menu.setMnemonic(KeyEvent.VK_E);
     menu.setToolTipText(
-        "Menu items releated to editing the ontology");
-    menuBar.add(menu);
+        "Menu items related to editing the ontology");
 
     editInsertPrefixes = new JMenuItem("Insert Prefixes");
     editInsertPrefixes.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I,
@@ -2280,12 +2624,21 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .addActionListener(new EditListOfSparqlServiceUrls());
     menu.add(editEditListOfSparqlServiceUrls);
 
-    // Setup Menu
-    menu = new JMenu("Setup");
-    menu.setMnemonic(KeyEvent.VK_S);
+    return menu;
+  }
+
+  /**
+   * Create the configuration menu
+   * 
+   * @return The configuration menu
+   */
+  private JMenu setupConfigurationMenu() {
+    final JMenu menu = new JMenu("Configure");
+    ButtonGroup buttonGroup;
+
+    menu.setMnemonic(KeyEvent.VK_C);
     menu.setToolTipText(
         "Menu items related to configuration");
-    menuBar.add(menu);
 
     buttonGroup = new ButtonGroup();
     setupOutputAssertionLanguage = new JCheckBoxMenuItem[FORMATS.length + 1];
@@ -2319,33 +2672,54 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     menu.addSeparator();
 
+    setupAllowMultilineResultOutput = new JCheckBoxMenuItem(
+        "Allow Multiple Lines of Text Per Row in SPARQL Query Output");
+    setupAllowMultilineResultOutput
+        .setToolTipText("Wrap long values into multiple lines in a display cell");
+    setupAllowMultilineResultOutput.setSelected(true);
+    menu.add(setupAllowMultilineResultOutput);
+
     setupOutputFqnNamespaces = new JCheckBoxMenuItem(
         "Show FQN Namespaces Instead of Prefixes in Query Output");
+    setupOutputFqnNamespaces
+        .setToolTipText("Use the fully qualified namespace. If unchecked use the prefix, if defined");
     setupOutputFqnNamespaces.setSelected(true);
     menu.add(setupOutputFqnNamespaces);
 
     setupOutputDatatypesForLiterals = new JCheckBoxMenuItem(
         "Show Datatypes on Literals in Query Output");
+    setupOutputDatatypesForLiterals
+        .setToolTipText("Display the datatype after the value, e.g. 4^^xsd:integer");
     setupOutputDatatypesForLiterals.setSelected(true);
     menu.add(setupOutputDatatypesForLiterals);
 
     setupOutputFlagLiteralValues = new JCheckBoxMenuItem(
         "Flag Literal Values in Query Output");
+    setupOutputFlagLiteralValues
+        .setToolTipText("Includes the text 'Lit:' in front of any literal values");
     setupOutputFlagLiteralValues.setSelected(true);
     menu.add(setupOutputFlagLiteralValues);
+
+    setupDisplayImagesInSparqlResults = new JCheckBoxMenuItem(
+        "Display Images in Query Output (Slows Results Retrieval)");
+    setupDisplayImagesInSparqlResults
+        .setToolTipText("Attempts to download images linked in the results. "
+            + "Can run very slowly depending on number and size of images");
+    setupDisplayImagesInSparqlResults.setSelected(true);
+    menu.add(setupDisplayImagesInSparqlResults);
 
     menu.addSeparator();
 
     buttonGroup = new ButtonGroup();
     setupExportSparqlResultsAsCsv = new JCheckBoxMenuItem(
-        "Export SPARQL Results to CSV");
+        "Export SPARQL Results to " + EXPORT_FORMAT_LABEL_CSV);
     setupExportSparqlResultsAsCsv
         .setToolTipText("Export to Comma Separated Value format");
     buttonGroup.add(setupExportSparqlResultsAsCsv);
     menu.add(setupExportSparqlResultsAsCsv);
 
     setupExportSparqlResultsAsTsv = new JCheckBoxMenuItem(
-        "Export SPARQL Results to TSV");
+        "Export SPARQL Results to " + EXPORT_FORMAT_LABEL_TSV);
     setupExportSparqlResultsAsTsv
         .setToolTipText("Export to Tab Separated Value format");
     buttonGroup.add(setupExportSparqlResultsAsTsv);
@@ -2391,12 +2765,20 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     setupProxyConfiguration.addActionListener(new ProxySetupListener());
     menu.add(setupProxyConfiguration);
 
-    // Model Menu
-    menu = new JMenu("Model");
+    return menu;
+  }
+
+  /**
+   * Create the model menu
+   * 
+   * @return The model menu
+   */
+  private JMenu setupModelMenu() {
+    final JMenu menu = new JMenu("Model");
+
     menu.setMnemonic(KeyEvent.VK_M);
     menu.setToolTipText(
-        "Menu items releated to viewing the model");
-    menuBar.add(menu);
+        "Menu items related to viewing the model");
 
     modelCreateTreeView = new JMenuItem("Create Tree");
     modelCreateTreeView.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T,
@@ -2418,17 +2800,20 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .addActionListener(new GenerateInferredTriplesListener());
     menu.add(modelListInferredTriples);
 
-    // Filters Menu
-    // private JCheckBoxMenuItem filterEnableFilters;
-    // private JCheckBoxMenuItem filterShowAnonymousNodes;
-    // private JMenuItem filterEditFilteredClasses;
-    // private JMenuItem filterEditFilteredProperties;
+    return menu;
+  }
 
-    menu = new JMenu("Tree Filter");
+  /**
+   * Create the filters menu
+   * 
+   * @return The filters menu
+   */
+  private JMenu setupFiltersMenu() {
+    final JMenu menu = new JMenu("Tree Filter");
+
     menu.setMnemonic(KeyEvent.VK_F);
     menu.setToolTipText(
         "Menu items related to filtering values out of the model's tree");
-    menuBar.add(menu);
 
     filterEnableFilters = new JCheckBoxMenuItem("Enable Filters");
     filterEnableFilters.setSelected(true);
@@ -2461,12 +2846,20 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .addActionListener(new EditFilteredPropertiesListener());
     menu.add(filterEditFilteredProperties);
 
-    // SPARQL Server Menu
-    menu = new JMenu("SPARQL Server");
+    return menu;
+  }
+
+  /**
+   * Create the SPARQL server menu
+   * 
+   * @return The SPARQL server menu
+   */
+  private JMenu setupSparqlServerMenu() {
+    final JMenu menu = new JMenu("SPARQL Server");
+
     menu.setMnemonic(KeyEvent.VK_P);
     menu.setToolTipText(
         "Options for using the SPARQL server");
-    menuBar.add(menu);
 
     sparqlServerStartup = new JMenuItem("Startup SPARQL Server");
     sparqlServerStartup.setMnemonic(KeyEvent.VK_S);
@@ -2503,12 +2896,20 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .addActionListener(new SparqlServerConfigurationListener());
     menu.add(sparqlServerConfig);
 
-    // Help Menu
-    menu = new JMenu("Help");
+    return menu;
+  }
+
+  /**
+   * Create the help menu
+   * 
+   * @return The help menu
+   */
+  private JMenu setupHelpMenu() {
+    final JMenu menu = new JMenu("Help");
+
     menu.setMnemonic(KeyEvent.VK_H);
     menu.setToolTipText(
-        "Menu items releated to user assistance");
-    menuBar.add(menu);
+        "Menu items related to user assistance");
 
     helpAbout = new JMenuItem("About");
     helpAbout.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H,
@@ -2518,6 +2919,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         "View version information");
     helpAbout.addActionListener(new AboutListener());
     menu.add(helpAbout);
+
+    return menu;
   }
 
   /**
@@ -2626,8 +3029,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     setupProxyEnabled.setEnabled(isProxyConfigOkay(false));
   }
 
+  /**
+   * Setup the network environment based on the proxy configuration. If the
+   * proxy is not enabled no changes will be made to the network operation.
+   */
   private void setupProxy() {
-
     if (isProxyConfigOkay(true) && proxyEnabled) {
       setupProxyEnabled.setSelected(proxyEnabled);
       if (proxyProtocolHttp) {
@@ -2661,6 +3067,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * Checks the proxy configuration and alerts the user if it is obviously
    * flawed.
+   * 
+   * @param alertUser
+   *          Whether to popup a message dialog if an error exists in the proxy
+   *          configuration
    * 
    * @return False if there is an issue with the proxy configuration
    */
@@ -2721,7 +3131,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * proxy
    */
   private void configureProxy() {
-    ProxyConfigurationDialog dialog = new ProxyConfigurationDialog(this,
+    final ProxyConfigurationDialog dialog = new ProxyConfigurationDialog(this,
         proxyServer, proxyPort, proxyProtocolHttp, proxyProtocolSocks);
 
     if (dialog.isAccepted()) {
@@ -2837,7 +3247,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void publishModelToTheSparqlServer() {
     if (ontModel != null) {
-      OntModel newModel = ModelFactory.createOntologyModel(ontModel
+      final OntModel newModel = ModelFactory.createOntologyModel(ontModel
           .getSpecification());
       newModel.add(ontModel.getBaseModel());
       SparqlServer.getInstance().setModel(newModel);
@@ -2852,7 +3262,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void configureSparqlServer() {
     if (!SparqlServer.getInstance().isActive()) {
-      SparqlServerConfigurationDialog dialog = new SparqlServerConfigurationDialog(
+      final SparqlServerConfigurationDialog dialog = new SparqlServerConfigurationDialog(
           this, SparqlServer.getInstance().getListenerPort(), SparqlServer
               .getInstance().getMaxRuntimeSeconds());
       if (dialog.isAccepted()) {
@@ -2881,8 +3291,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
   }
 
+  /**
+   * Set the tab background and foreground color based on whether the tab's data
+   * is out of synch with the model or other configuration changes
+   */
   private void colorCodeTabs() {
-
     if (hasIncompleteAssertionsInput) {
       tabbedPane.setForegroundAt(0, Color.orange.darker());
       tabbedPane.setBackgroundAt(0, Color.yellow.brighter());
@@ -2899,7 +3312,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       tabbedPane.setForegroundAt(1, Color.red);
       tabbedPane.setBackgroundAt(1, Color.pink);
       tabbedPane.setToolTipTextAt(1,
-          "Results out of sync with loaded assertions");
+          "Inferences are out of sync with loaded assertions");
       // inferredTriples.setBackground(Color.red);
       // inferredTriples.setForeground(Color.white);
     } else {
@@ -2915,7 +3328,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       tabbedPane.setForegroundAt(2, Color.red);
       tabbedPane.setBackgroundAt(2, Color.pink);
       tabbedPane.setToolTipTextAt(2,
-          "Results out of sync with loaded assertions");
+          "Tree is out of sync with loaded assertions");
       // ontModelTree.setBackground(Color.red);
       // ontModelTree.setForeground(Color.white);
     } else {
@@ -2931,7 +3344,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       tabbedPane.setForegroundAt(3, Color.red);
       tabbedPane.setBackgroundAt(3, Color.pink);
       tabbedPane.setToolTipTextAt(3,
-          "Results out of sync with loaded assertions");
+          "Results are out of sync with loaded assertions");
       // sparqlResultsTable.setBackground(Color.red);
       // sparqlResultsTable.setForeground(Color.white);
     } else {
@@ -2966,9 +3379,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
     language.setSelectedIndex(0);
 
-    assertedTripleCount = new JLabel("N/A");
+    assertedTripleCount = new JLabel(NOT_APPLICABLE_DISPLAY);
     assertedTripleCount.setHorizontalAlignment(JLabel.CENTER);
-    inferredTripleCount = new JLabel("N/A");
+    inferredTripleCount = new JLabel(NOT_APPLICABLE_DISPLAY);
     inferredTripleCount.setHorizontalAlignment(JLabel.CENTER);
 
     runInferencing = new JButton("Create Model");
@@ -3020,6 +3433,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     // Results table
     sparqlResultsTable = new JTable(new SparqlTableModel());
     sparqlResultsTable.setAutoCreateRowSorter(true);
+    // sparqlResultsTable.setDefaultRenderer(SparqlResultItem.class, new
+    // SparqlResultItemRenderer());
+    // sparqlResultsTable.setDefaultRenderer(Object.class, new
+    // SparqlResultItemRenderer());
 
     // Determine whether alternate tree icons exist
     if (ImageLibrary.instance().getImageIcon(ImageLibrary.ICON_TREE_CLASS) != null) {
@@ -3068,15 +3485,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
   /**
    * Expand all the nodes in the tree representation of the model
+   * 
+   * @return The final status to display
    */
   private String expandAll() {
     int numNodes;
     ProgressMonitor progress;
     boolean canceled;
-    DefaultMutableTreeNode root = (DefaultMutableTreeNode) ontModelTree
+    final DefaultMutableTreeNode root = (DefaultMutableTreeNode) ontModelTree
         .getModel().getRoot();
     @SuppressWarnings("rawtypes")
-    Enumeration enumerateNodes = root.breadthFirstEnumeration();
+    final Enumeration enumerateNodes = root.breadthFirstEnumeration();
 
     numNodes = 0;
     while (enumerateNodes.hasMoreElements()) {
@@ -3091,7 +3510,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     setStatus("Expanding all tree nodes");
 
-    for (int row = 0; !(canceled = progress.isCanceled()) && row < numNodes; ++row) {
+    for (int row = 0; !progress.isCanceled() && row < numNodes; ++row) {
       progress.setProgress(row);
       if (row % 1000 == 0) {
         progress.setNote("Row " + row + " of " + numNodes);
@@ -3100,6 +3519,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       ontModelTree.expandRow(row);
       // ontModelTree.scrollRowToVisible(row);
     }
+
+    canceled = progress.isCanceled();
 
     progress.close();
 
@@ -3120,6 +3541,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
   /**
    * Collapse all the nodes in the tree representation of the model
+   * 
+   * @return The final status to display
    */
   private String collapseAll() {
     setStatus("Collapsing all tree nodes");
@@ -3157,16 +3580,16 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          Whether to display the system default wait cursor
    */
   private void setWaitCursor(boolean wait) {
-    JRootPane rootPane = getRootPane();
-    Component glassPane = rootPane.getGlassPane();
+    final JRootPane rootPane = getRootPane();
+    final Component glassPane = rootPane.getGlassPane();
 
     if (wait) {
-      Cursor cursorWait = Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR);
+      final Cursor cursorWait = Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR);
       rootPane.setCursor(cursorWait);
       glassPane.setCursor(cursorWait);
       glassPane.setVisible(true);
     } else {
-      Cursor cursorDefault = Cursor
+      final Cursor cursorDefault = Cursor
           .getPredefinedCursor(Cursor.DEFAULT_CURSOR);
       glassPane.setVisible(false);
       glassPane.setCursor(cursorDefault);
@@ -3269,8 +3692,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     String causeClass;
     String causeMessage;
     QueryExceptionHTTP httpExc = null;
-    int lineNumber = -1;
-    int columnNumber = -1;
+    int[] lineAndColumn = new int[2];
+    int whichSelectedTab = -1;
+    JTextArea whichFocusJTextArea = null;
 
     if (throwable.getCause() != null) {
       causeClass = throwable.getCause().getClass().getName();
@@ -3289,7 +3713,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     alertMessage += causeClass + "\n" + causeMessage;
 
     statusMessage =
-        (causeMessage.trim().length() > 0 ? causeMessage : causeClass);
+        causeMessage.trim().length() > 0 ? causeMessage : causeClass;
 
     if (throwable instanceof QueryExceptionHTTP) {
       httpExc = (QueryExceptionHTTP) throwable;
@@ -3338,58 +3762,19 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         if (nextThrowable instanceof RiotException) {
           riotExc = (RiotException) nextThrowable;
         } else {
-          LOGGER.trace("Not a riot exception, another? " + throwable.getClass().toString() + "->" + throwable.getCause());
+          LOGGER.trace("Not a riot exception, another? "
+              + throwable.getClass().toString() + "->" + throwable.getCause());
           nextThrowable = nextThrowable.getCause();
         }
       }
       if (riotExc != null) {
-        String message = riotExc.getMessage().toLowerCase();
-        int startLinePos = message.indexOf("line: ");
-        int endLinePos = message.substring(startLinePos).indexOf(',')
-            + startLinePos;
-        int startColPos = message.indexOf("col: ");
-        int endColPos = message.substring(startColPos).indexOf(']')
-            + startColPos;
-        if (startLinePos > -1 && startColPos > startLinePos) {
-          try {
-            lineNumber = Integer.parseInt(message.substring(startLinePos + 6,
-                endLinePos).trim());
-            columnNumber = Integer.parseInt(message.substring(startColPos + 5,
-                endColPos).trim());
-          } catch (Throwable parseError) {
-            LOGGER.warn("Cannot extract line/col from exception message: "
-                + message, parseError);
-            lineNumber = -1;
-            columnNumber = -1;
-          }
-        }
+        lineAndColumn = getSyntaxErrorLineColLocation(riotExc
+            .getMessage().toLowerCase(), "line: ", ",", "col: ", "]");
+        whichSelectedTab = TAB_NUMBER_ASSERTIONS;
+        whichFocusJTextArea = assertionsInput;
       } else {
         LOGGER
             .debug("No riot exception found so the caret cannot be positioned");
-      }
-
-      if (lineNumber > 0 && columnNumber > 0) {
-        --lineNumber;
-        --columnNumber;
-        LOGGER.debug("Attempt to set assertions caret to position ("
-            + lineNumber + "," + columnNumber + ")");
-        final int finalLineNumber = lineNumber;
-        final int finalColumnNumber = columnNumber;
-        SwingUtilities.invokeLater(new Runnable() {
-          public void run() {
-            tabbedPane.setSelectedIndex(TAB_NUMBER_ASSERTIONS);
-            try {
-              assertionsInput.setCaretPosition(assertionsInput
-                  .getLineStartOffset(finalLineNumber) + finalColumnNumber);
-              assertionsInput.requestFocusInWindow();
-            }
-            catch (Throwable throwable) {
-              LOGGER.warn("Cannot set assertions carat position to ("
-                  + finalLineNumber
-                  + "," + finalColumnNumber + ")", throwable);
-            }
-          }
-        });
       }
     }
     if (runningOperation == Operation.EXECUTE_SPARQL) {
@@ -3400,62 +3785,105 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         if (nextThrowable instanceof QueryParseException) {
           queryParseExc = (QueryParseException) nextThrowable;
         } else {
-          LOGGER.trace("Not a query parse exception, another? " + throwable.getClass().toString() + "->" + throwable.getCause());
+          LOGGER.trace("Not a query parse exception, another? "
+              + throwable.getClass().toString() + "->" + throwable.getCause());
           nextThrowable = nextThrowable.getCause();
         }
       }
       if (queryParseExc != null) {
-        String message = queryParseExc.getMessage().toLowerCase();
-        int startLinePos = message.indexOf("at line ");
-        int endLinePos = message.substring(startLinePos).indexOf(',')
-              + startLinePos;
-        int startColPos = message.indexOf(", column ");
-        int endColPos = message.substring(startColPos).indexOf('.')
-              + startColPos;
-        if (startLinePos > -1 && startColPos > startLinePos) {
-          try {
-            lineNumber = Integer.parseInt(message.substring(startLinePos + 8,
-                  endLinePos).trim());
-            columnNumber = Integer.parseInt(message.substring(startColPos + 9,
-                  endColPos).trim());
-          } catch (Throwable parseError) {
-            LOGGER.warn("Cannot extract line/col from exception message: "
-                  + message, parseError);
-            lineNumber = -1;
-            columnNumber = -1;
-          }
-        }
+        lineAndColumn = getSyntaxErrorLineColLocation(queryParseExc
+            .getMessage().toLowerCase(), "at line ", ",", ", column ", ".");
+        whichSelectedTab = TAB_NUMBER_SPARQL;
+        whichFocusJTextArea = sparqlInput;
       } else {
         LOGGER
             .debug("No query parse exception found so the caret cannot be positioned");
       }
+    }
 
-      if (lineNumber > 0 && columnNumber > 0) {
-        --lineNumber;
-        --columnNumber;
-        LOGGER.debug("Attempt to set SPARQL query caret to position ("
-            + lineNumber + "," + columnNumber + ")");
-        final int finalLineNumber = lineNumber;
-        final int finalColumnNumber = columnNumber;
-        SwingUtilities.invokeLater(new Runnable() {
-          public void run() {
-            tabbedPane.setSelectedIndex(TAB_NUMBER_SPARQL);
-            try {
-              sparqlInput.setCaretPosition(sparqlInput
-                    .getLineStartOffset(finalLineNumber) + finalColumnNumber);
-              sparqlInput.requestFocusInWindow();
-            }
-              catch (Throwable throwable) {
-                LOGGER.warn("Cannot set SPARQL query carat position to ("
+    if (lineAndColumn[0] > 0 && lineAndColumn[1] > 0) {
+      LOGGER.debug("Attempt to set assertions caret to position ("
+          + lineAndColumn[0] + "," + lineAndColumn[1] + ")");
+      final int finalLineNumber = lineAndColumn[0] - 1;
+      final int finalColumnNumber = lineAndColumn[1] - 1;
+      final int finalWhichSelectedTab = whichSelectedTab;
+      final JTextArea finalWhichFocusJTextArea = whichFocusJTextArea;
+      SwingUtilities.invokeLater(new Runnable() {
+        public void run() {
+          tabbedPane.setSelectedIndex(finalWhichSelectedTab);
+          try {
+            finalWhichFocusJTextArea.setCaretPosition(finalWhichFocusJTextArea
+                .getLineStartOffset(finalLineNumber) + finalColumnNumber);
+            finalWhichFocusJTextArea.requestFocusInWindow();
+          }
+          catch (Throwable throwable) {
+            LOGGER.warn(
+                "Cannot set " + finalWhichFocusJTextArea.getName()
+                    + " carat position to ("
                     + finalLineNumber
-                    + "," + finalColumnNumber + ")", throwable);
-              }
-            }
-        });
+                    + "," + finalColumnNumber + ") on tab "
+                    + finalWhichSelectedTab, throwable);
+          }
+        }
+      });
+    }
+
+    return statusMessage;
+  }
+
+  /**
+   * Extract the line and column position in a reported syntax error. The
+   * information is returned in a two-element int array. Index 0 is the line
+   * number and index 1 is the column number. If the line or column number
+   * cannot be found in the message, these values will be -1.
+   * 
+   * @param message
+   *          The syntax error message containing the line and column position
+   *          of the error
+   * @param lineNumStartToken
+   *          The token preceeding the line number in the message
+   * @param lineNumEndToken
+   *          The token following the line number in the message
+   * @param colNumStartToken
+   *          The token preceeding the column number in the message
+   * @param colNumEndToken
+   *          The token following the column number in the message
+   * 
+   * @return A 2-element array with the line number in element 0 and the column
+   *         number in element 1. The value for the line and/or column will be
+   *         -1 if the information cannot be found in the message.
+   */
+  private int[] getSyntaxErrorLineColLocation(String message,
+      String lineNumStartToken, String lineNumEndToken,
+      String colNumStartToken, String colNumEndToken) {
+    final int[] lineAndColumn = new int[2];
+
+    lineAndColumn[0] = -1;
+    lineAndColumn[1] = -1;
+
+    final int startLinePos = message.indexOf(lineNumStartToken);
+    final int endLinePos = message.substring(startLinePos).indexOf(
+        lineNumEndToken)
+          + startLinePos;
+    final int startColPos = message.indexOf(colNumStartToken);
+    final int endColPos = message.substring(startColPos)
+        .indexOf(colNumEndToken)
+          + startColPos;
+    if (startLinePos > -1 && startColPos > startLinePos) {
+      try {
+        lineAndColumn[0] = Integer.parseInt(message.substring(
+            startLinePos + lineNumStartToken.length(),
+              endLinePos).trim());
+        lineAndColumn[1] = Integer.parseInt(message.substring(
+            startColPos + colNumStartToken.length(),
+              endColPos).trim());
+      } catch (Throwable parseError) {
+        LOGGER.warn("Cannot extract line/col from exception message: "
+              + message, parseError);
       }
     }
-    
-    return statusMessage;
+
+    return lineAndColumn;
   }
 
   /**
@@ -3467,7 +3895,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * @return True if a new thread may be started
    */
   private boolean okToRunThread() {
-    boolean okToRun = runningOperation == null;
+    final boolean okToRun = runningOperation == null;
 
     if (!okToRun) {
       JOptionPane.showMessageDialog(this,
@@ -3480,6 +3908,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     return okToRun;
   }
 
+  /**
+   * Setup to load the assertions and start a thread
+   */
   private void runModelLoad() {
     if (okToRunThread()) {
       runningOperation = Operation.LOAD_ASSERTIONS;
@@ -3518,7 +3949,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
-   * Setup to build the list of inferred triples in the model.
+   * Setup to build the list of inferred triples in the model and start a thread
    */
   private void runIdentifyInferredTriples() {
     if (okToRunThread()) {
@@ -3527,6 +3958,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
   }
 
+  /**
+   * Setup to export the model and start a thread
+   */
   private void runModelExport() {
     if (okToRunThread()) {
       runningOperation = Operation.EXPORT_MODEL;
@@ -3534,6 +3968,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
   }
 
+  /**
+   * Setup to export the SPARQL results to a file and start a thread
+   */
   private void runSparqlResultsExport() {
     if (okToRunThread()) {
       runningOperation = Operation.EXPORT_SPARQL_RESULTS;
@@ -3541,6 +3978,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
   }
 
+  /**
+   * Setup to expand all the tree nodes and start a thread
+   */
   private void runExpandAllTreeNodes() {
     if (okToRunThread()) {
       runningOperation = Operation.EXPAND_TREE;
@@ -3548,6 +3988,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
   }
 
+  /**
+   * Setup to collapse all tree nodes and start a thread
+   */
   private void runCollapseAllTreeNodes() {
     if (okToRunThread()) {
       runningOperation = Operation.COLLAPSE_TREE;
@@ -3557,6 +4000,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
   /**
    * Execute the steps to run the reasoner
+   * 
+   * @return The message to be presented on the status line
    */
   private String reasonerExecution() {
     setStatus("Running reasoner...");
@@ -3568,6 +4013,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
   /**
    * Execute the steps to run the SPARQL query
+   * 
+   * @return The message to be presented on the status line
    */
   private String sparqlExecution() {
     long numResults;
@@ -3595,10 +4042,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     long numResults;
 
     // Get the query
-    String queryString = sparqlInput.getText().trim();
+    final String queryString = sparqlInput.getText().trim();
 
     // Create a Query instance
-    Query query = QueryFactory.create(queryString, Syntax.syntaxARQ);
+    final Query query = QueryFactory.create(queryString, Syntax.syntaxARQ);
 
     LOGGER.debug("Query Graph URIs? " + query.getGraphURIs());
 
@@ -3636,7 +4083,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
        */
     } else {
       // ConnectionConfiguration
-      String defaultGraphUriText = defaultGraphUri.getText().trim();
+      final String defaultGraphUriText = defaultGraphUri.getText().trim();
 
       // Check for default graph
       if (defaultGraphUriText.length() > 0) {
@@ -3673,9 +4120,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
     resultSet = qe.execSelect();
 
-    SparqlTableModel tableModel = (SparqlTableModel) sparqlResultsTable
-        .getModel();
-
     if (setupSparqlResultsToFile.isSelected()) {
       numResults = writeSparqlResultsDirectlyToFile(resultSet,
           new SparqlResultsFormatter(
@@ -3684,10 +4128,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
               setupOutputDatatypesForLiterals.isSelected(),
               setupOutputFqnNamespaces.isSelected()));
     } else {
+      final SparqlTableModel tableModel = (SparqlTableModel) sparqlResultsTable
+          .getModel();
+      final SparqlResultItemRenderer renderer = new SparqlResultItemRenderer(
+          setupAllowMultilineResultOutput.isSelected());
+      renderer.setFont(sparqlResultsTable.getFont());
+      sparqlResultsTable.setDefaultRenderer(SparqlResultItem.class, renderer);
       tableModel.setupModel(resultSet, query, ontModel,
           setupOutputFlagLiteralValues.isSelected(),
           setupOutputDatatypesForLiterals.isSelected(),
-          setupOutputFqnNamespaces.isSelected());
+          setupOutputFqnNamespaces.isSelected(),
+          setupDisplayImagesInSparqlResults.isSelected());
       numResults = tableModel.getRowCount();
     }
     // Important - free up resources used running the query
@@ -3702,7 +4153,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * @return The known ontology file formats as a CSV list
    */
-  public final static String getFormatsAsCSV() {
+  public static final String getFormatsAsCSV() {
     return getArrayAsCSV(FORMATS);
   }
 
@@ -3712,7 +4163,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * @return The known reasoning levels as a CSV list
    */
-  public final static String getReasoningLevelsAsCSV() {
+  public static final String getReasoningLevelsAsCSV() {
     return getArrayAsCSV(REASONER_SELECTIONS.toArray());
   }
 
@@ -3723,7 +4174,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          An array
    * @return The array values in a CSV list
    */
-  public final static String getArrayAsCSV(Object[] array) {
+  public static final String getArrayAsCSV(Object[] array) {
     StringBuffer csv;
 
     csv = new StringBuffer();
@@ -3844,8 +4295,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     modelFormat = null;
 
-    isTreeInSyncWithModel = areInferencesInSyncWithModel
-        = areSparqlResultsInSyncWithModel = false;
+    isTreeInSyncWithModel = false;
+    areInferencesInSyncWithModel = false;
+    areSparqlResultsInSyncWithModel = false;
 
     if (language.getSelectedIndex() == 0) {
       for (String format : FORMATS) {
@@ -3888,9 +4340,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
     } else {
       LOGGER.info("Loaded assertions" + " using format: " + modelFormat);
-      assertedTripleCount.setText(integerCommaFormat.format(ontModel
+      assertedTripleCount.setText(INTEGER_COMMA_FORMAT.format(ontModel
           .getBaseModel().size()) + "");
-      inferredTripleCount.setText(integerCommaFormat.format(ontModel.size()
+      inferredTripleCount.setText(INTEGER_COMMA_FORMAT.format(ontModel.size()
           - ontModel.getBaseModel()
               .size())
           + "");
@@ -3906,8 +4358,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * @param format
    *          The format to use, must be a value in the array FORMATS
+   * 
    * @throws IOException
-   * @throws StardogException
+   *           If the file cannot be read
    */
   private void tryFormat(String format) throws IOException {
     InputStream inputStream = null;
@@ -3923,7 +4376,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
             rdfFileSource.getInputStream());
 
         if (rdfFileSource.isUrl()) {
-          ProgressMonitor pm = ((ProgressMonitorInputStream) inputStream)
+          final ProgressMonitor pm = ((ProgressMonitorInputStream) inputStream)
               .getProgressMonitor();
           // pm.setMillisToDecideToPopup(0);
           // pm.setMillisToPopup(0);
@@ -3962,9 +4415,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * @see OntologyTreeCellRenderer
    * 
+   * @return The message to be presented on the status line
    */
   private String createTreeFromModel() {
-    String messagePrefix = "Creating the tree view";
+    final String messagePrefix = "Creating the tree view";
     DefaultMutableTreeNode treeTopNode;
     DefaultMutableTreeNode classesNode;
     DefaultMutableTreeNode oneClassNode;
@@ -4263,7 +4717,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *         equal to the constant UNKNOWN if the value cannot be found in the
    *         collection of known reasoning levels
    */
-  public final static int getIndexValue(String[] array, String name) {
+  public static final int getIndexValue(String[] array, String name) {
     Integer indexValue;
 
     indexValue = null;
@@ -4285,7 +4739,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          The mouse click event
    */
   private void processOntologyModelTreeLeftClick(MouseEvent event) {
-    Wrapper wrapper = getSelectedWrapperInTree(event);
+    final Wrapper wrapper = getSelectedWrapperInTree(event);
     findMatchingIndividual(wrapper, true);
   }
 
@@ -4307,15 +4761,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     boolean wrappedAroundBackward = false;
 
     if (wrapper != null && wrapper instanceof WrapperInstance) {
-      DefaultMutableTreeNode node = (DefaultMutableTreeNode) treeModel
+      final DefaultMutableTreeNode node = (DefaultMutableTreeNode) treeModel
           .getRoot();
       @SuppressWarnings("unchecked")
-      Enumeration<DefaultMutableTreeNode> nodeEnumeration = node
+      final Enumeration<DefaultMutableTreeNode> nodeEnumeration = node
           .preorderEnumeration();
       while (nodeEnumeration.hasMoreElements()) {
-        DefaultMutableTreeNode nextNode = nodeEnumeration.nextElement();
+        final DefaultMutableTreeNode nextNode = nodeEnumeration.nextElement();
         if (nextNode.getUserObject() instanceof Wrapper) {
-          Wrapper nodeWrapper = (Wrapper) nextNode.getUserObject();
+          final Wrapper nodeWrapper = (Wrapper) nextNode.getUserObject();
           if (wrapper.getUuid().equals(nodeWrapper.getUuid())) {
             foundClickedNode = true;
             if (forward) {
@@ -4392,7 +4846,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
                 .getPathToRoot(finalMatchAt)));
             ontModelTree.scrollPathToVisible(new TreePath(treeModel
                 .getPathToRoot(finalMatchAt)));
-            Rectangle visible = ontModelTree.getVisibleRect();
+            final Rectangle visible = ontModelTree.getVisibleRect();
             visible.x = 0;
             ontModelTree.scrollRectToVisible(visible);
           }
@@ -4410,12 +4864,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          The mouse click event
    */
   private void processOntologyModelTreeRightClick(MouseEvent event) {
-    Wrapper wrapper = getSelectedWrapperInTree(event);
+    final Wrapper wrapper = getSelectedWrapperInTree(event);
     if (wrapper != null) { // && wrapper.getUri().indexOf("Anonymous") == -1) {
       if (wrapper instanceof WrapperClass
             || wrapper instanceof WrapperDataProperty
             || wrapper instanceof WrapperObjectProperty) {
-        FilterValuePopup popup = new FilterValuePopup(wrapper);
+        final FilterValuePopup popup = new FilterValuePopup(wrapper);
         popup.show(event.getComponent(), event.getX(), event.getY());
       } else if (wrapper instanceof WrapperInstance) {
         findMatchingIndividual(wrapper, false);
@@ -4425,6 +4879,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
   /**
    * Invalidates the existing ontology model.
+   * 
+   * @param alterControls
+   *          Whether or not the current enable/disable setting of GUI controls
+   *          should be updated
    */
   private void invalidateModel(boolean alterControls) {
     if (ontModel != null) {
@@ -4432,14 +4890,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     ontModel = null;
-    assertedTripleCount.setText("N/A");
-    inferredTripleCount.setText("N/A");
+    assertedTripleCount.setText(NOT_APPLICABLE_DISPLAY);
+    inferredTripleCount.setText(NOT_APPLICABLE_DISPLAY);
 
     reasoningLevel.setToolTipText(((ReasonerSelection) reasoningLevel
         .getSelectedItem()).getDescription());
 
-    isTreeInSyncWithModel = areInferencesInSyncWithModel
-        = areSparqlResultsInSyncWithModel = false;
+    isTreeInSyncWithModel = false;
+    areInferencesInSyncWithModel = false;
+    areSparqlResultsInSyncWithModel = false;
 
     if (alterControls) {
       enableControls(true);
@@ -4458,14 +4917,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     Wrapper chosenWrapper = null;
 
     LOGGER.debug("Tree mouse event: " + event.paramString());
-    TreePath path = ontModelTree.getPathForLocation(event.getX(), event.getY());
+    final TreePath path = ontModelTree.getPathForLocation(event.getX(),
+        event.getY());
     if (path != null) {
       LOGGER.debug("Tree right-mouse event on: " + path.getLastPathComponent()
           + " of class " + path.getLastPathComponent().getClass());
       if (path.getLastPathComponent() instanceof DefaultMutableTreeNode) {
-        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path
+        final DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path
             .getLastPathComponent();
-        Object selectedObject = selectedNode.getUserObject();
+        final Object selectedObject = selectedNode.getUserObject();
         LOGGER.debug("Class of object in the selected tree node: "
             + selectedObject.getClass().getName());
         if (selectedObject instanceof Wrapper) {
@@ -4608,11 +5068,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Load the provided file as an ontology replacing any assertions currently
    * in the assertions text area.
    * 
-   * @param inputFile
-   *          The file to load (should be an ontology)
+   * @return The message to be presented on the status line
    */
   private String loadOntologyFile() {
-    int chunkSize = 32000;
+    final int chunkSize = 32000;
     StringBuilder allData;
     char[] chunk;
     long totalBytesRead = 0;
@@ -4674,9 +5133,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         monitor.setProgress(chunksRead);
         monitor
             .setNote("Read "
-                + integerCommaFormat.format(totalBytesRead)
+                + INTEGER_COMMA_FORMAT.format(totalBytesRead)
                 + (rdfFileSource.isFile() ? " of "
-                    + integerCommaFormat.format(rdfFileSource.length())
+                    + INTEGER_COMMA_FORMAT.format(rdfFileSource.length())
                     : " bytes")
                 + (chunksRead >= maxChunks ? " (Determining total file size)"
                     : ""));
@@ -4706,11 +5165,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
             .append("The file is too large to display. However the entire file will be loaded\n");
         warningMessage
             .append("into the model when it is built.\n\nDisplay size limit (bytes): ");
-        warningMessage.append(integerCommaFormat
+        warningMessage.append(INTEGER_COMMA_FORMAT
                         .format(MAX_ASSERTION_BYTES_TO_LOAD_INTO_TEXT_AREA));
         if (rdfFileSource.isFile()) {
           warningMessage.append("\nFile size (bytes):");
-          warningMessage.append(integerCommaFormat.format(rdfFileSource
+          warningMessage.append(INTEGER_COMMA_FORMAT.format(rdfFileSource
               .length()));
         }
         warningMessage.append("\n\n");
@@ -4734,18 +5193,18 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         // Add text to the assertions text area to highlight the fact that the
         // entire file was not loaded into the text area
         allData.insert(0, "# First "
-            + integerCommaFormat
+            + INTEGER_COMMA_FORMAT
                 .format(MAX_ASSERTION_BYTES_TO_LOAD_INTO_TEXT_AREA)
-            + " of " + integerCommaFormat.format(rdfFileSource.length())
+            + " of " + INTEGER_COMMA_FORMAT.format(rdfFileSource.length())
             + " bytes displayed\n\n");
         allData.insert(0, "# INCOMPLETE VERSION of the file: "
             + rdfFileSource.getAbsolutePath() + "\n");
         allData.append("\n\n# INCOMPLETE VERSION of the file: "
             + rdfFileSource.getAbsolutePath() + "\n");
         allData.append("# First "
-            + integerCommaFormat
+            + INTEGER_COMMA_FORMAT
                 .format(MAX_ASSERTION_BYTES_TO_LOAD_INTO_TEXT_AREA)
-            + " of " + integerCommaFormat.format(rdfFileSource.length())
+            + " of " + INTEGER_COMMA_FORMAT.format(rdfFileSource.length())
             + " bytes displayed\n");
       }
 
@@ -4798,6 +5257,31 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
+   * Extract a value located in a comment in a file and idnetified by a prefix
+   * in front of the value. This is used to store information such as the
+   * service URL for a sparql query as a comment in the query file.
+   * 
+   * @param data
+   *          The line containing the prefix and associated value
+   * @param prefix
+   *          The prefix identifying the value
+   * 
+   * @return The extracted value (following the prefix) or null if the prefix is
+   *         not found or no value follows it
+   */
+  private String extractCommentData(String data, String prefix) {
+    String extractedValue = null;
+    int location;
+
+    location = data.indexOf(prefix);
+    if (location > -1 && data.length() > location + prefix.length()) {
+      extractedValue = data.substring(location + prefix.length()).trim();
+    }
+
+    return extractedValue;
+  }
+
+  /**
    * Load the provided file as a SPARQL query replacing any query currently
    * in the query text area.
    * 
@@ -4808,6 +5292,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     BufferedReader reader;
     String data;
     StringBuffer allData;
+    String serviceUrlFromFile = null;
+    String defaultGraphUriFromFile = null;
 
     lastDirectoryUsed = inputFile.getParentFile();
 
@@ -4817,11 +5303,46 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     try {
       reader = new BufferedReader(new FileReader(inputFile));
       while ((data = reader.readLine()) != null) {
-        allData.append(data);
-        allData.append('\n');
+        if (data.indexOf(SPARQL_QUERY_SAVE_SERVICE_URL_PARAM) > -1) {
+          serviceUrlFromFile = extractCommentData(data,
+              SPARQL_QUERY_SAVE_SERVICE_URL_PARAM);
+        } else if (data.indexOf(SPARQL_QUERY_SAVE_SERVICE_DEFAULT_GRAPH_PARAM) > -1) {
+          defaultGraphUriFromFile = extractCommentData(data,
+              SPARQL_QUERY_SAVE_SERVICE_DEFAULT_GRAPH_PARAM);
+        } else {
+          allData.append(data);
+          allData.append('\n');
+        }
       }
+
       sparqlInput.setText(allData.toString());
       sparqlInput.moveCaretPosition(0);
+
+      if (defaultGraphUriFromFile != null) {
+        defaultGraphUri.setText(defaultGraphUriFromFile);
+      }
+
+      if (serviceUrlFromFile != null) {
+        int matchAt = -1;
+        if (serviceUrlFromFile
+            .equals(SPARQL_QUERY_SAVE_SERVICE_URL_VALUE_FOR_NO_SERVICE_URL)) {
+          matchAt = 0;
+        } else {
+          for (int index = 1; matchAt == -1
+              && index < sparqlServiceUrl.getItemCount(); ++index) {
+            if (sparqlServiceUrl.getItemAt(index).toString()
+                .equals(serviceUrlFromFile)) {
+              matchAt = index;
+            }
+          }
+        }
+        if (matchAt > -1) {
+          sparqlServiceUrl.setSelectedIndex(matchAt);
+        } else {
+          sparqlServiceUrl.addItem(serviceUrlFromFile);
+        }
+      }
+
       setStatus("Loaded SPARQL query file: " + inputFile.getName());
       sparqlQueryFile = inputFile;
       addRecentSparqlFile(inputFile);
@@ -4856,6 +5377,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
   /**
    * Remove prior SPARQL results if the SPARQL query changes
+   * 
+   * @param alterControls
+   *          Whether or not the current enable/disable setting of GUI controls
+   *          should be updated
    */
   private void invalidateSparqlResults(boolean alterControls) {
     // SparqlTableModel tableModel = (SparqlTableModel) sparqlResultsTable
@@ -4907,15 +5432,18 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       return; // EARLY EXIT!
     }
 
-    okayToWrite = !destinationFile.exists();
-    if (!okayToWrite) {
-      int verifyOverwrite;
-      verifyOverwrite = JOptionPane.showConfirmDialog(this,
-          "The file exists: " + destinationFile.getName()
-              + "\n\nOkay to overwrite?", "Overwrite File?",
-          JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-      okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
-    }
+    okayToWrite = okToOverwriteFile(destinationFile);
+    /*
+     * okayToWrite = !destinationFile.exists();
+     * if (!okayToWrite) {
+     * int verifyOverwrite;
+     * verifyOverwrite = JOptionPane.showConfirmDialog(this,
+     * "The file exists: " + destinationFile.getName()
+     * + "\n\nOkay to overwrite?", "Overwrite File?",
+     * JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+     * okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
+     * }
+     */
 
     if (okayToWrite) {
 
@@ -4928,23 +5456,47 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         setRdfFileSource(new FileSource(destinationFile));
         addRecentAssertedTriplesFile(new FileSource(destinationFile));
       } catch (IOException ioExc) {
-        LOGGER.error("Unable to write to file: " + destinationFile,
-            ioExc);
-        throw new RuntimeException("Unable to write output file ("
-            + destinationFile + ")", ioExc);
+        final String errorMessage = "Unable to write to file: "
+            + destinationFile;
+        LOGGER.error(errorMessage, ioExc);
+        throw new RuntimeException(errorMessage, ioExc);
       } finally {
         if (out != null) {
           try {
             out.close();
           } catch (Throwable throwable) {
-            LOGGER.error("Failed to close output file: "
-                + destinationFile, throwable);
+            final String errorMessage = "Failed to close output file: "
+                + destinationFile;
+            LOGGER.error(errorMessage, throwable);
             throw new RuntimeException(
-                "Failed to close output file", throwable);
+                errorMessage, throwable);
           }
         }
       }
     }
+  }
+
+  /**
+   * Determine whether an output file already exists and if so, popup a dialog
+   * asking they user whether it is okay to overwrite the existing file.
+   * 
+   * @param destinationFile
+   *          The output file
+   * 
+   * @return True of the file may be written (overwritten)
+   */
+  private boolean okToOverwriteFile(File destinationFile) {
+    boolean okayToWrite = !destinationFile.exists();
+    if (!okayToWrite) {
+      int verifyOverwrite;
+      verifyOverwrite = JOptionPane.showConfirmDialog(this,
+          "The file exists: " + destinationFile.getName()
+              + "\n\nOkay to overwrite?", "Overwrite File?",
+          JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+      okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
+    }
+
+    return okayToWrite;
   }
 
   /**
@@ -4982,15 +5534,18 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       return; // EARLY EXIT!
     }
 
-    okayToWrite = !destinationFile.exists();
-    if (!okayToWrite) {
-      int verifyOverwrite;
-      verifyOverwrite = JOptionPane.showConfirmDialog(this,
-          "The file exists: " + destinationFile.getName()
-              + "\n\nOkay to overwrite?", "Overwrite File?",
-          JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-      okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
-    }
+    okayToWrite = okToOverwriteFile(destinationFile);
+    /*
+     * okayToWrite = !destinationFile.exists();
+     * if (!okayToWrite) {
+     * int verifyOverwrite;
+     * verifyOverwrite = JOptionPane.showConfirmDialog(this,
+     * "The file exists: " + destinationFile.getName()
+     * + "\n\nOkay to overwrite?", "Overwrite File?",
+     * JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+     * okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
+     * }
+     */
 
     if (okayToWrite) {
 
@@ -4998,23 +5553,38 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
       try {
         out = new FileWriter(destinationFile, false);
+
+        if (sparqlServiceUrl.getSelectedIndex() != 0) {
+
+          out.write("# " + SPARQL_QUERY_SAVE_SERVICE_URL_PARAM
+              + sparqlServiceUrl.getSelectedItem() + "\n");
+        } else {
+          out.write("# " + SPARQL_QUERY_SAVE_SERVICE_URL_PARAM
+              + SPARQL_QUERY_SAVE_SERVICE_URL_VALUE_FOR_NO_SERVICE_URL + "\n");
+        }
+
+        if (defaultGraphUri.getText().trim().length() > 0) {
+          out.write("# " + SPARQL_QUERY_SAVE_SERVICE_DEFAULT_GRAPH_PARAM
+              + defaultGraphUri.getText().trim()
+              + "\n");
+        }
         out.write(sparqlInput.getText());
         sparqlQueryFile = destinationFile;
         addRecentSparqlFile(destinationFile);
       } catch (IOException ioExc) {
-        LOGGER.error("Unable to write to file: " + destinationFile,
-            ioExc);
-        throw new RuntimeException("Unable to write output file ("
-            + destinationFile + ")", ioExc);
+        final String errorMessage = "Unable to write to file: "
+            + destinationFile;
+        LOGGER.error(errorMessage, ioExc);
+        throw new RuntimeException(errorMessage, ioExc);
       } finally {
         if (out != null) {
           try {
             out.close();
           } catch (Throwable throwable) {
-            LOGGER.error("Failed to close output file: "
-                + destinationFile, throwable);
-            throw new RuntimeException(
-                "Failed to close output file", throwable);
+            final String errorMessage = "Failed to close output file: "
+                + destinationFile;
+            LOGGER.error(errorMessage, throwable);
+            throw new RuntimeException(errorMessage, throwable);
           }
         }
       }
@@ -5163,6 +5733,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
   }
 
+  /**
+   * Setup to read assertions from a file source
+   * 
+   * @param inputFileSource
+   *          The file source of the assertions
+   */
   private void setupToLoadOntologyFile(FileSource inputFileSource) {
     if (inputFileSource.isFile() && !inputFileSource.getBackingFile().isFile()) {
       JOptionPane.showMessageDialog(this,
@@ -5207,15 +5783,18 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       return; // EARLY EXIT!
     }
 
-    okayToWrite = !destinationFile.exists();
-    if (!okayToWrite) {
-      int verifyOverwrite;
-      verifyOverwrite = JOptionPane.showConfirmDialog(this,
-          "The file exists: " + destinationFile.getName()
-              + "\n\nOkay to overwrite?", "Overwrite File?",
-          JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-      okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
-    }
+    okayToWrite = okToOverwriteFile(destinationFile);
+    /*
+     * okayToWrite = !destinationFile.exists();
+     * if (!okayToWrite) {
+     * int verifyOverwrite;
+     * verifyOverwrite = JOptionPane.showConfirmDialog(this,
+     * "The file exists: " + destinationFile.getName()
+     * + "\n\nOkay to overwrite?", "Overwrite File?",
+     * JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+     * okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
+     * }
+     */
 
     if (okayToWrite) {
       modelExportFile = destinationFile;
@@ -5234,6 +5813,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * @see #setupToWriteOntologyModel()
    * 
+   * @return The message to be presented on the status line
    */
   private String writeOntologyModel() {
     FileWriter out = null;
@@ -5260,7 +5840,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
       message = "Completed writing " + message;
     } catch (IOException ioExc) {
-      LOGGER.error("Unable to write to file: " + modelExportFile,
+      LOGGER.error("Unable to write file: " + modelExportFile,
           ioExc);
       setStatus("Failed to write file (check log) " + message);
       throw new RuntimeException("Unable to write output file ("
@@ -5270,10 +5850,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         try {
           out.close();
         } catch (Throwable throwable) {
-          LOGGER.error("Failed to close output file: "
-              + modelExportFile, throwable);
-          throw new RuntimeException(
-              "Failed to close output file", throwable);
+          final String errorMessage = "Failed to close output file: "
+              + modelExportFile;
+          LOGGER.error(errorMessage, throwable);
+          throw new RuntimeException(errorMessage, throwable);
         }
       }
     }
@@ -5314,15 +5894,18 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       return; // EARLY EXIT!
     }
 
-    okayToWrite = !destinationFile.exists();
-    if (!okayToWrite) {
-      int verifyOverwrite;
-      verifyOverwrite = JOptionPane.showConfirmDialog(this,
-          "The file exists: " + destinationFile.getName()
-              + "\n\nOkay to overwrite?", "Overwrite File?",
-          JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-      okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
-    }
+    okayToWrite = okToOverwriteFile(destinationFile);
+    /*
+     * okayToWrite = !destinationFile.exists();
+     * if (!okayToWrite) {
+     * int verifyOverwrite;
+     * verifyOverwrite = JOptionPane.showConfirmDialog(this,
+     * "The file exists: " + destinationFile.getName()
+     * + "\n\nOkay to overwrite?", "Overwrite File?",
+     * JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+     * okayToWrite = verifyOverwrite == JOptionPane.YES_OPTION;
+     * }
+     */
 
     if (okayToWrite) {
       sparqlResultsExportFile = destinationFile;
@@ -5336,6 +5919,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * This allows for arbitrarily large result sets to be handled and written
    * since there is no memory limitation being imposed by attempting to
    * represent the results within the GUI
+   * 
+   * @param results
+   *          The result set from the SPARQL query
+   * @param formatter
+   *          The formatter to be used to output the results
+   * 
+   * @return The number of result rows written to the file
    */
   private long writeSparqlResultsDirectlyToFile(ResultSet results,
       SparqlResultsFormatter formatter) {
@@ -5343,12 +5933,16 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     long numRows = 0;
     List<String> columns;
     PrintWriter out = null;
-    boolean toCsv = setupExportSparqlResultsAsCsv.isSelected();
+    final boolean toCsv = setupExportSparqlResultsAsCsv.isSelected();
     int fileNumber = 0;
     File outputFile;
     File outputDirectory;
-    SparqlTableModel tableModel = (SparqlTableModel) sparqlResultsTable
+    final SparqlTableModel tableModel = (SparqlTableModel) sparqlResultsTable
         .getModel();
+    final SparqlResultItemRenderer renderer = new SparqlResultItemRenderer(
+        setupAllowMultilineResultOutput.isSelected());
+    renderer.setFont(sparqlResultsTable.getFont());
+    sparqlResultsTable.setDefaultRenderer(SparqlResultItem.class, renderer);
 
     if (lastDirectoryUsed != null) {
       outputDirectory = lastDirectoryUsed;
@@ -5363,13 +5957,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           + fileNumber + "." + (toCsv ? "csv" : "txt"));
     } while (outputFile.exists());
 
-    message = "SPARQL results (" + (toCsv ? "CSV" : "TSV") + ") directly to "
+    message = "SPARQL results ("
+        + (toCsv ? EXPORT_FORMAT_LABEL_CSV : EXPORT_FORMAT_LABEL_TSV)
+        + ") directly to "
         + outputFile.getAbsolutePath();
 
     setStatus("Writing " + message);
 
     tableModel.displayMessageInTable("Exporting Results Directly to File",
-        new String[] { outputFile.getAbsolutePath() });
+        new String[] {
+          outputFile.getAbsolutePath()
+        });
 
     LOGGER
         .info("Write SPARQL results to file, " + outputFile.getAbsolutePath());
@@ -5396,7 +5994,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       // Output data
       while (results.hasNext()) {
         ++numRows;
-        QuerySolution solution = results.next();
+        final QuerySolution solution = results.next();
 
         for (int columnNumber = 0; columnNumber < columns.size(); ++columnNumber) {
           if (columnNumber > 0) {
@@ -5405,10 +6003,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
           if (toCsv) {
             out.print(TextProcessing.formatForCsvColumn(formatter.format(
-                solution, columns.get(columnNumber))));
+                solution, columns.get(columnNumber), false)));
           } else {
             out.print(TextProcessing.formatForTsvColumn(formatter.format(
-                solution, columns.get(columnNumber))));
+                solution, columns.get(columnNumber), false)));
           }
         }
 
@@ -5419,8 +6017,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           "Failed to write SPARQL results to " + outputFile.getAbsolutePath(),
           throwable);
       tableModel.displayMessageInTable("Exporting Results Directly to File",
-          new String[] { "Failed to write the file", throwable.getMessage(),
-              outputFile.getAbsolutePath() });
+          new String[] {
+              "Failed to write the file", throwable.getMessage(),
+              outputFile.getAbsolutePath()
+          });
       throw new RuntimeException("Failed to write SPARQL results to "
           + outputFile.getAbsolutePath(), throwable);
     } finally {
@@ -5445,6 +6045,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * @see #setupToWriteSparqlResults()
    * 
+   * @return The message to be presented on the status line
    */
   private String writeSparqlResults() {
     PrintWriter out = null;
@@ -5453,7 +6054,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     // Either CSV or TSV currently
     toCsv = setupExportSparqlResultsAsCsv.isSelected();
 
-    String message = "SPARQL results (" + (toCsv ? "CSV" : "TSV") + ") to "
+    String message = "SPARQL results ("
+        + (toCsv ? EXPORT_FORMAT_LABEL_CSV : EXPORT_FORMAT_LABEL_TSV) + ") to "
         + sparqlResultsExportFile;
 
     setStatus("Writing " + message);
@@ -5463,7 +6065,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     try {
       out = new PrintWriter(new FileWriter(sparqlResultsExportFile, false));
 
-      SparqlTableModel model = (SparqlTableModel) sparqlResultsTable.getModel();
+      final SparqlTableModel model = (SparqlTableModel) sparqlResultsTable
+          .getModel();
 
       // Output column names
       for (int columnNumber = 0; columnNumber < model.getColumnCount(); ++columnNumber) {
@@ -5490,10 +6093,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           }
 
           if (toCsv) {
-            out.print(TextProcessing.formatForCsvColumn((String) model
+            out.print(TextProcessing.formatForCsvColumn(model
                 .getValueAt(rowNumber, columnNumber)));
           } else {
-            out.print(TextProcessing.formatForTsvColumn((String) model
+            out.print(TextProcessing.formatForTsvColumn(model
                 .getValueAt(rowNumber, columnNumber)));
           }
         }
@@ -5512,10 +6115,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         try {
           out.close();
         } catch (Throwable throwable) {
-          LOGGER.error("Failed to close output file: "
-              + sparqlResultsExportFile, throwable);
+          final String errorMessage = "Unable to close output file: "
+              + sparqlResultsExportFile;
+          LOGGER.error(errorMessage, throwable);
           throw new RuntimeException(
-              "Failed to close output file", throwable);
+              errorMessage, throwable);
         }
       }
     }
@@ -5523,8 +6127,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     return message;
   }
 
+  /**
+   * Evaluate the SPARQL service field and see if a new service address has been
+   * entered
+   */
   private void processSparqlServiceChoice() {
-    String currentSelection = sparqlServiceUrl.getSelectedItem().toString();
+    final String currentSelection = sparqlServiceUrl.getSelectedItem()
+        .toString();
 
     LOGGER.debug("SPARQL Service URL Change: Index: "
         + sparqlServiceUrl.getSelectedIndex() + " Value: [" + currentSelection
@@ -5534,7 +6143,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     // A new service URL will likely be at least 13 characters long
     // e.g. http://1.2.3.4
     if (sparqlServiceUrl.getSelectedIndex() == -1
-        && currentSelection.trim().length() > 12) {
+        && currentSelection.trim().length() > 10) {
       sparqlServiceUrl.addItem(currentSelection);
     }
 
@@ -5589,7 +6198,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private void closeApplication() {
     saveProperties();
     setVisible(false);
-    LOGGER.info("Shutdown");
+    LOGGER.info("Shutdown application");
     System.exit(0);
   }
 
@@ -5633,7 +6242,18 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   public void windowOpened(WindowEvent arg0) {
   }
 
+  /**
+   * Handle mnouse events in the ontology tree view
+   */
   private class OntologyModelTreeMouseListener extends MouseAdapter {
+    /**
+     * No operation
+     */
+    public OntologyModelTreeMouseListener() {
+
+    }
+
+    @Override
     public void mouseClicked(MouseEvent event) {
       if (event.getButton() == MouseEvent.BUTTON1) {
         processOntologyModelTreeLeftClick(event);
@@ -5644,17 +6264,34 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
   }
 
+  /**
+   * A popup menu for allowing the user to select a set of values to be removed
+   * from a list
+   */
   private class FilterValuePopup extends JPopupMenu implements ActionListener {
     /**
      * Serial UID
      */
     private static final long serialVersionUID = 6587807055541029847L;
 
+    /**
+     * The collection of items to be shown to the user
+     */
     private Wrapper wrappedObject;
+
+    /**
+     * The menu item to be presented to the user
+     */
     private JMenuItem menuItem;
 
-    public FilterValuePopup(Wrapper wrappedObject) {
-      this.wrappedObject = wrappedObject;
+    /**
+     * Setup the menu item with the list of objects
+     * 
+     * @param pWrappedObject
+     *          The collection of items to be shown to the user
+     */
+    public FilterValuePopup(Wrapper pWrappedObject) {
+      wrappedObject = pWrappedObject;
 
       menuItem = new JMenuItem("Filter out: " + wrappedObject.toString());
       menuItem.addActionListener(this);
@@ -5667,7 +6304,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     @Override
     public void actionPerformed(ActionEvent event) {
       if (event.getSource() instanceof JMenuItem) {
-        JMenuItem source = (JMenuItem) event.getSource();
+        final JMenuItem source = (JMenuItem) event.getSource();
         if (source == menuItem) {
           LOGGER.debug("FilterValuePopup choice: "
               + wrappedObject.getClass().toString() + " - " + wrappedObject);
@@ -5682,6 +6319,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * monitored
    */
   private class ReasonerListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public ReasonerListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       runReasoner();
     }
@@ -5690,11 +6335,16 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * Used to detect configuration changes that would cause the reasoner to
    * behave differently, thereby invalidating the current model.
-   * 
-   * @author David Read
-   * 
    */
   private class ReasonerConfigurationChange implements ActionListener {
+    /**
+     * No operation
+     */
+    public ReasonerConfigurationChange() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       invalidateModel(true);
     }
@@ -5705,6 +6355,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * monitored
    */
   private class SparqlListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public SparqlListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       runSPARQL();
     }
@@ -5714,6 +6372,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Opens an ontology file
    */
   private class FileAssertedTriplesOpenListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public FileAssertedTriplesOpenListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       openOntologyFile();
     }
@@ -5723,6 +6389,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Opens an ontology using a URL
    */
   private class FileAssertedTriplesUrlOpenListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public FileAssertedTriplesUrlOpenListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       openOntologyUrl();
     }
@@ -5732,6 +6406,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Loads a recently accessed ontology file
    */
   private class RecentAssertedTriplesFileOpenListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public RecentAssertedTriplesFileOpenListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       openRecentOntologyFile(e.getSource());
     }
@@ -5741,6 +6423,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Loads a recently accessed ontology file
    */
   private class RecentSparqlFileOpenListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public RecentSparqlFileOpenListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       openRecentSparqlQueryFile(e.getSource());
     }
@@ -5750,6 +6440,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Opens a SPARQL query file
    */
   private class FileSparqlOpenListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public FileSparqlOpenListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       openSparqlQueryFile();
     }
@@ -5759,6 +6457,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Exits the application
    */
   private class EndApplicationListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public EndApplicationListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       closeApplication();
     }
@@ -5768,6 +6474,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Evaluates control status
    */
   private class SparqlModelChoiceListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public SparqlModelChoiceListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       processSparqlServiceChoice();
     }
@@ -5777,6 +6491,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Inserts standard prefixes
    */
   private class InsertPrefixesListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public InsertPrefixesListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       insertPrefixes();
     }
@@ -5786,6 +6508,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Writes assertions to a file
    */
   private class FileAssertedTriplesSaveListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public FileAssertedTriplesSaveListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       saveAssertionsToFile();
     }
@@ -5795,6 +6525,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Writes SPARQL query to a file
    */
   private class FileSparqlSaveListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public FileSparqlSaveListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       saveSparqlQueryToFile();
     }
@@ -5804,6 +6542,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Expands the nodes in the tree representation of the model
    */
   private class ExpandTreeListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public ExpandTreeListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       runExpandAllTreeNodes();
     }
@@ -5813,6 +6559,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Collapses the nodes in the tree representation of the model
    */
   private class CollapseTreeListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public CollapseTreeListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       runCollapseAllTreeNodes();
     }
@@ -5823,6 +6577,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * dropdown
    */
   private class EditListOfSparqlServiceUrls implements ActionListener {
+    /**
+     * No operation
+     */
+    public EditListOfSparqlServiceUrls() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       editListOfSparqlServiceUrls();
     }
@@ -5832,6 +6594,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Allows the user to change the display font
    */
   private class FontSetupListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public FontSetupListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       configureFont();
     }
@@ -5841,6 +6611,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Writes the current model to an ontology file
    */
   private class ModelSerializerListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public ModelSerializerListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       setupToWriteOntologyModel();
     }
@@ -5850,6 +6628,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Writes the current SPARQL results to a CSV file
    */
   private class FileSparqlResultsSaveListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public FileSparqlResultsSaveListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       setupToWriteSparqlResults();
     }
@@ -5859,6 +6645,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Allows the user to edit the list of classes filtered in the tree view
    */
   private class EditFilteredClassesListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public EditFilteredClassesListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       editFilterMap(classesToSkipInTree);
     }
@@ -5868,6 +6662,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Allows the user to edit the list of properties filtered in the tree view
    */
   private class EditFilteredPropertiesListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public EditFilteredPropertiesListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       editFilterMap(predicatesToSkipInTree);
     }
@@ -5877,6 +6679,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Enable or disable the use of a proxy for network-based requests
    */
   private class ProxyStatusChangeListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public ProxyStatusChangeListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       changeProxyMode();
     }
@@ -5886,6 +6696,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Configure the proxy
    */
   private class ProxySetupListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public ProxySetupListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       configureProxy();
     }
@@ -5895,6 +6713,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Start the SPARQL server
    */
   private class SparqlServerStartupListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public SparqlServerStartupListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       startSparqlServer();
     }
@@ -5904,6 +6730,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Stop the SPARQL server
    */
   private class SparqlServerShutdownListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public SparqlServerShutdownListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       stopSparqlServer();
     }
@@ -5913,6 +6747,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Publish the current ontology model to the SPARQL server
    */
   private class SparqlServerPublishModelListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public SparqlServerPublishModelListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       publishModelToTheSparqlServer();
     }
@@ -5922,6 +6764,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Publish the current ontology model to the SPARQL server
    */
   private class SparqlServerConfigurationListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public SparqlServerConfigurationListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       configureSparqlServer();
     }
@@ -5931,6 +6781,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Displays About dialog
    */
   private class AboutListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public AboutListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       about();
     }
@@ -5943,6 +6801,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    */
   private class GenerateTreeListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public GenerateTreeListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       runCreateTreeFromModel();
       // createTreeFromModel();
@@ -5956,6 +6822,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    */
   private class GenerateInferredTriplesListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public GenerateInferredTriplesListener() {
+
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
       runIdentifyInferredTriples();
       // identifyInferredTriples();
@@ -5967,12 +6841,29 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * monitored
    */
   private class UserInputListener implements KeyListener {
+    /**
+     * The content of the SPARQL input prior to the key release event
+     */
     private String lastSparql;
+
+    /**
+     * The content of the assertions input prior to the key release event
+     */
     private String lastAssertions;
+
+    /**
+     * No operation
+     */
+    public UserInputListener() {
+
+    }
 
     /**
      * Track current content of assertions and query fields to detect a change
      * if there is a current model or results
+     * 
+     * @param arg0
+     *          The key event received
      */
     public void keyPressed(KeyEvent arg0) {
       if (arg0.getSource() == assertionsInput && ontModel != null) {
@@ -5988,6 +6879,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     /**
      * Detect whether a change was made to the assertions or query that would
      * require invalidating the model or results
+     * 
+     * @param arg0
+     *          The key event received
      */
     public void keyReleased(KeyEvent arg0) {
       if (arg0.getSource() == assertionsInput) {
@@ -6005,6 +6899,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     /**
      * No operation
+     * 
+     * @param arg0
+     *          The key event received
      */
     public void keyTyped(KeyEvent arg0) {
 
@@ -6023,4 +6920,3 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     new SemanticWorkbench();
   }
 }
-

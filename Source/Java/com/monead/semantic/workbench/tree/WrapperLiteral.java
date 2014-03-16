@@ -28,6 +28,11 @@ package com.monead.semantic.workbench.tree;
  *
  */
 public class WrapperLiteral extends Wrapper {
+  /**
+   * Create the wrapper for a literal
+   * 
+   * @param value The literal value
+   */
   public WrapperLiteral(String value) {
     super(value, null);
   }
@@ -37,6 +42,8 @@ public class WrapperLiteral extends Wrapper {
    * 
    * The value is placed in the localname attribute of the 
    * Wrapper.
+   * 
+   * @return The local name (which is the literal value)
    */
   public String toString() {
     return getLocalName();

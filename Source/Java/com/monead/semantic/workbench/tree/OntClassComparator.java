@@ -12,6 +12,13 @@ import com.hp.hpl.jena.ontology.OntClass;
  */
 public class OntClassComparator implements Comparator<OntClass> {
 
+  /**
+   * No operation
+   */
+  public OntClassComparator() {
+    
+  }
+  
   @Override
   public int compare(OntClass o1, OntClass o2) {
     String o1Label;

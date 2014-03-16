@@ -25,9 +25,17 @@ package com.monead.semantic.workbench.tree;
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
  * @author David Read
- *
+ * 
  */
 public class WrapperClass extends Wrapper {
+  /**
+   * Create the wrapper for a class
+   * 
+   * @param localName
+   *          The local name of the class
+   * @param uri
+   *          The URI of the class
+   */
   public WrapperClass(String localName, String uri) {
     super(localName, uri);
   }

@@ -28,7 +28,12 @@ package com.monead.semantic.workbench.tree;
  *
  */
 public class WrapperInstance extends Wrapper {
-
+  /**
+   * Create the wrapper for an instance
+   * 
+   * @param localName The local name of the instance
+   * @param uri The local name of the URI
+   */
   public WrapperInstance(String localName, String uri) {
     super(localName, uri);
   }

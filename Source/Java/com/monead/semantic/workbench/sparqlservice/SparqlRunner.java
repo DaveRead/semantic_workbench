@@ -31,7 +31,7 @@ public class SparqlRunner implements Runnable {
   /**
    * Logger Instance
    */
-  private final static Logger LOGGER = Logger.getLogger(SparqlRunner.class);
+  private static final Logger LOGGER = Logger.getLogger(SparqlRunner.class);
 
   /**
    * Max processing time for handling a SPARQL query
@@ -56,15 +56,18 @@ public class SparqlRunner implements Runnable {
   /**
    * Create a new instance of the SparqlRunner class to execute a SPARQL query.
    * 
-   * @param connection
+   * @param pConnection
    *          The connection from the requester
-   * @param model
+   * @param pModel
    *          The ontology model to use for processing this SPARQL query
+   * @param pMaxRuntimeSeconds
+   *          Maximum seconds to allow query to run before canceling the query
    */
-  public SparqlRunner(Socket connection, OntModel model, int maxRuntimeSeconds) {
-    this.connection = connection;
-    this.model = model;
-    maxRuntimeMilliseconds = maxRuntimeSeconds * 1000;
+  public SparqlRunner(Socket pConnection, OntModel pModel,
+      int pMaxRuntimeSeconds) {
+    connection = pConnection;
+    model = pModel;
+    maxRuntimeMilliseconds = pMaxRuntimeSeconds * 1000;
   }
 
   @Override
@@ -120,7 +123,7 @@ public class SparqlRunner implements Runnable {
           connection.getInputStream()));
       out = new PrintWriter(connection.getOutputStream(), true);
 
-      String request = getRequestMessage(in);
+      final String request = getRequestMessage(in);
       executeSparql(out, request);
       out.flush();
     } finally {
@@ -147,7 +150,7 @@ public class SparqlRunner implements Runnable {
   private void executeSparql(PrintWriter out, String sparql) throws IOException {
     QueryExecution qe;
     ResultSet resultSet;
-    String query = URLDecoder.decode(sparql, "UTF-8");
+    final String query = URLDecoder.decode(sparql, "UTF-8");
 
     LOGGER.debug("Sparql converted: [" + sparql + "] to [" + query + "]");
 
@@ -173,7 +176,7 @@ public class SparqlRunner implements Runnable {
   private void returnResults(PrintWriter out, ResultSet results)
       throws IOException {
     List<String> columns;
-    List<String> columnLabels = new ArrayList<String>();
+    final List<String> columnLabels = new ArrayList<String>();
     QuerySolution solution;
     int caratPosit;
     String literal;
@@ -211,8 +214,9 @@ public class SparqlRunner implements Runnable {
 
       for (String var : columnLabels) {
         if (solution.get(var) == null) {
-
-        } else if (solution.get(var).isLiteral()) {
+          continue;
+        }
+        if (solution.get(var).isLiteral()) {
           literal = solution.getLiteral(var).toString();
           if ((caratPosit = literal.indexOf('^')) > -1) {
             value = literal.substring(0, caratPosit);

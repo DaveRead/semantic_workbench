@@ -11,9 +11,24 @@ import java.util.List;
  * 
  */
 public class NewVersionInformation {
+  /**
+   * The latest version number
+   */
   private String latestVersionString;
+
+  /**
+   * The new features in the latest version
+   */
   private List<String> newFeatures = new ArrayList<String>();
+
+  /**
+   * The URL to the download page
+   */
   private URL urlToDownloadPage;
+
+  /**
+   * The URL to the source code
+   */
   private URL urlToSourceCode;
 
   /**
@@ -32,21 +47,21 @@ public class NewVersionInformation {
    */
   public String getDownloadInformation() {
     StringBuilder message;
-    
+
     message = new StringBuilder();
-    
+
     if (getUrlToDownloadPage() != null) {
       message.append("The latest installer is located at:\n");
       message.append(getUrlToDownloadPage().toString());
       message.append("\n");
     }
-    
+
     if (getUrlToSourceCode() != null) {
       message.append("The source code is located at:\n");
       message.append(getUrlToSourceCode().toString());
       message.append("\n");
     }
-    
+
     return message.toString();
   }
 
@@ -62,11 +77,11 @@ public class NewVersionInformation {
   /**
    * Set the latest version number
    * 
-   * @param latestVersionString
+   * @param pLatestVersionString
    *          The version number
    */
-  public void setLatestVersion(String latestVersionString) {
-    this.latestVersionString = latestVersionString;
+  public void setLatestVersion(String pLatestVersionString) {
+    latestVersionString = pLatestVersionString;
   }
 
   /**
@@ -75,7 +90,7 @@ public class NewVersionInformation {
    * @return Listing of new features
    */
   public String getNewFeaturesDescription() {
-    StringBuffer message = new StringBuffer();
+    final StringBuffer message = new StringBuffer();
 
     for (String line : newFeatures) {
       message.append(line);
@@ -109,11 +124,11 @@ public class NewVersionInformation {
   /**
    * Set the URL for the application's download web page.
    * 
-   * @param urlToDownloadPage
+   * @param pUrlToDownloadPage
    *          The URL for the program's download page
    */
-  public void setUrlToDownloadPage(URL urlToDownloadPage) {
-    this.urlToDownloadPage = urlToDownloadPage;
+  public void setUrlToDownloadPage(URL pUrlToDownloadPage) {
+    urlToDownloadPage = pUrlToDownloadPage;
   }
 
   /**
@@ -130,10 +145,10 @@ public class NewVersionInformation {
   /**
    * Set the URL for the application's source code location
    * 
-   * @param urlToSourceCode
+   * @param pUrlToSourceCode
    *          The URL for the program's source code location
    */
-  public void setUrlToSourceCode(URL urlToSourceCode) {
-    this.urlToSourceCode = urlToSourceCode;
+  public void setUrlToSourceCode(URL pUrlToSourceCode) {
+    this.urlToSourceCode = pUrlToSourceCode;
   }
 }

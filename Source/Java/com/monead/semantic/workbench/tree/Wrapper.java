@@ -29,24 +29,34 @@ import java.util.UUID;
  * 
  */
 public abstract class Wrapper {
+  /**
+   * The unique id for this wrapped component
+   */
   private UUID uuid;
-  
+
+  /**
+   * The local name of the wrapped component (e.g. without namespace)
+   */
   private String localName;
+
+  /**
+   * The full URI for the wrapped component
+   */
   private String uri;
 
   /**
    * Accepts the node's local name and full uri.
    * 
-   * @param localName
+   * @param pLocalName
    *          The local name of the ontology's URI component
-   * @param uri
+   * @param pUri
    *          The URI of the ontology component
    */
-  public Wrapper(String localName, String uri) {
+  public Wrapper(String pLocalName, String pUri) {
     uuid = UUID.randomUUID();
-    
-    this.localName = localName;
-    this.uri = uri;
+
+    localName = pLocalName;
+    uri = pUri;
   }
 
   /**
@@ -57,7 +67,7 @@ public abstract class Wrapper {
   public UUID getUuid() {
     return uuid;
   }
-  
+
   /**
    * Get the local name portion of the ontology's URI component.
    * 
@@ -78,6 +88,8 @@ public abstract class Wrapper {
 
   /**
    * Output the local name and append the URI
+   * 
+   * @return The local name with appended URI in parentheses
    */
   public String toString() {
     return getLocalName() + " (" + getUri() + ")";

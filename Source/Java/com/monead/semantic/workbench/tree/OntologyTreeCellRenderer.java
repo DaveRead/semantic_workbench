@@ -22,6 +22,13 @@ public class OntologyTreeCellRenderer extends DefaultTreeCellRenderer {
    */
   private static final long serialVersionUID = -4654608660501772470L;
 
+  /**
+   * No operation
+   */
+  public OntologyTreeCellRenderer() {
+
+  }
+
   @Override
   public Component getTreeCellRendererComponent(
       JTree tree,
@@ -65,7 +72,7 @@ public class OntologyTreeCellRenderer extends DefaultTreeCellRenderer {
    */
   private boolean updateIcon(Object value, boolean leaf, boolean expanded) {
     boolean hasSpecializedIcon = false;
-    Object object =
+    final Object object =
             ((DefaultMutableTreeNode) value).getUserObject();
 
     if (object instanceof WrapperLiteral) {
@@ -78,7 +85,7 @@ public class OntologyTreeCellRenderer extends DefaultTreeCellRenderer {
           leaf ? ImageLibrary.ICON_TREE_CLASS_NOINSTANCES_BOXED
               : ImageLibrary.ICON_TREE_CLASS_BOXED));
       // setLeafIcon(ImageLibrary.instance().getIcon(
-      //    ImageLibrary.ICON_TREE_CLASS_NOINSTANCES_BOXED));
+      // ImageLibrary.ICON_TREE_CLASS_NOINSTANCES_BOXED));
       setToolTipText("This is a class");
       hasSpecializedIcon = true;
 

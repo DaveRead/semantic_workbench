@@ -36,21 +36,21 @@ public class FileSource {
   /**
    * Creates a FileSource that wraps a File
    * 
-   * @param myFile
+   * @param pMyFile
    *          The File represented by this FileSource
    */
-  public FileSource(File myFile) {
-    this.myFile = myFile;
+  public FileSource(File pMyFile) {
+    myFile = pMyFile;
   }
 
   /**
    * Creates a FileSource that wraps a URL
    * 
-   * @param myUrl
+   * @param pMyUrl
    *          The URL represented by this FileSource
    */
-  public FileSource(URL myUrl) {
-    this.myUrl = myUrl;
+  public FileSource(URL pMyUrl) {
+    myUrl = pMyUrl;
   }
 
   /**
@@ -155,12 +155,21 @@ public class FileSource {
   public long length() {
     return isFile() ? myFile.length() : urlSourceFileLength;
   }
-  
+
+  /**
+   * Set the number of bytes in a page referenced by the File Source. This may
+   * only be called for URLs. If the FileSource is a file, this method will
+   * throw an IllegalParameterException.
+   * 
+   * @param byteLength
+   *          The length of the file referenced by the FileSource's URL
+   */
   public void setLength(long byteLength) {
     if (!isUrl()) {
-      throw new IllegalParameterException("Only the length for a URL can be overridden");
+      throw new IllegalParameterException(
+          "Only the length for a URL can be overridden");
     }
-    
+
     urlSourceFileLength = byteLength;
   }
 
@@ -197,7 +206,7 @@ public class FileSource {
   /**
    * The toString() call will return the file name or full URL
    * 
-   * return The File name or URL
+   * @return The File name or URL
    */
   public String toString() {
     return getName();

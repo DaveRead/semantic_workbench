@@ -28,6 +28,12 @@ package com.monead.semantic.workbench.tree;
  * 
  */
 public class WrapperObjectProperty extends Wrapper {
+  /**
+   * Create a wrapper for a property
+   * 
+   * @param localName The local name of the property
+   * @param uri The URI of the property
+   */
   public WrapperObjectProperty(String localName, String uri) {
     super(localName, uri);
   }
