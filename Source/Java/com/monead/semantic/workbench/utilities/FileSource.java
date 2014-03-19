@@ -203,6 +203,45 @@ public class FileSource {
     return myUrl;
   }
 
+  @Override
+  public int hashCode() {
+    if (isUrl()) {
+      return getBackingUrl().hashCode();
+    } else {
+      return getBackingFile().hashCode();
+    }
+  }
+
+  @Override
+  public boolean equals(Object object) {
+    if (object instanceof FileSource) {
+      return equals((FileSource) object);
+    }
+
+    return false;
+  }
+
+  /**
+   * Compare this FileSource to another FileSource. They are equivalent if they
+   * contain the same file path or URL.
+   * 
+   * @param fileSource
+   *          The file source to compare
+   * 
+   * @return True if the two file sources reference the same file path or URL
+   */
+  public boolean equals(FileSource fileSource) {
+    boolean equal = false;
+
+    if (isUrl() && fileSource.isUrl()) {
+      equal = getBackingUrl().equals(fileSource.getBackingUrl());
+    } else if (isFile() && fileSource.isFile()) {
+      equal = getBackingFile().equals(fileSource.getBackingFile());
+    }
+
+    return equal;
+  }
+
   /**
    * The toString() call will return the file name or full URL
    * 

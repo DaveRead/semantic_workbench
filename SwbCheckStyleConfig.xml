@@ -123,7 +123,7 @@
     <module name="UpperEll"/>
   </module>
   <module name="FileLength">
-	<property name="max" value="7000"/>
+	<property name="max" value="7500"/>
   </module>
   <module name="JavadocPackage"/>
   <module name="NewlineAtEndOfFile"/>

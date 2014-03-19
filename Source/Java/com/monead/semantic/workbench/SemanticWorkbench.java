@@ -78,6 +78,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.ToolTipManager;
 import javax.swing.WindowConstants;
+import javax.swing.border.TitledBorder;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -116,6 +117,13 @@ import com.hp.hpl.jena.rdf.model.RDFNode;
 import com.hp.hpl.jena.rdf.model.Statement;
 import com.hp.hpl.jena.rdf.model.StmtIterator;
 import com.hp.hpl.jena.sparql.engine.http.QueryExceptionHTTP;
+import com.hp.hpl.jena.update.GraphStore;
+import com.hp.hpl.jena.update.GraphStoreFactory;
+import com.hp.hpl.jena.update.UpdateAction;
+import com.hp.hpl.jena.update.UpdateExecutionFactory;
+import com.hp.hpl.jena.update.UpdateFactory;
+import com.hp.hpl.jena.update.UpdateProcessor;
+import com.hp.hpl.jena.update.UpdateRequest;
 import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.monead.semantic.workbench.images.ImageLibrary;
 import com.monead.semantic.workbench.security.StarDogSparqlAuthenticator;
@@ -197,7 +205,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "1.9.2";
+  public static final String VERSION = "1.9.3";
 
   /**
    * Serial UID
@@ -605,6 +613,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * setting
    */
   private static final String PROP_SPARQL_DISPLAY_ALLOW_MULTILINE_OUTPUT = "SparqlDisplayAllowMultilineOutput";
+
+  /**
+   * Property file property name: store the sparql service remote update support
+   * setting
+   */
+  private static final String PROP_SPARQL_SERVER_ALLOW_REMOTE_UPDATE = "SparqlServerAllowRemoteUpdate";
 
   /**
    * Configuration properties
@@ -1409,6 +1423,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
     }
 
+    // Sparql server remote updates permitted
+    SparqlServer.getInstance().setRemoteUpdatesPermitted(
+        properties.getProperty(PROP_SPARQL_SERVER_ALLOW_REMOTE_UPDATE, "N")
+            .toUpperCase().startsWith("Y"));
+
     // Proxy
     proxyServer = properties.getProperty(PROP_PROXY_SERVER);
     value = properties.getProperty(PROP_PROXY_PORT);
@@ -1889,6 +1908,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .getListenerPort() + "");
     properties.setProperty(PROP_SPARQL_SERVER_MAX_RUNTIME, SparqlServer
         .getInstance().getMaxRuntimeSeconds() + "");
+    properties.setProperty(PROP_SPARQL_SERVER_ALLOW_REMOTE_UPDATE, SparqlServer
+        .getInstance().areRemoteUpdatesPermitted() ? DEFAULT_PROPERTY_VALUE_YES
+        : DEFAULT_PROPERTY_VALUE_NO);
 
     properties.setProperty(PROP_PROXY_ENABLED,
         proxyEnabled ? DEFAULT_PROPERTY_VALUE_YES : DEFAULT_PROPERTY_VALUE_NO);
@@ -3197,10 +3219,23 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         }
 
         if (SparqlServer.getInstance().isActive()) {
+          if (SparqlServer.getInstance().areRemoteUpdatesPermitted()) {
+            sparqlServerInfo.setBorder(BorderFactory
+                    .createTitledBorder(
+                        BorderFactory.createLineBorder(Color.red.darker()),
+                        "SPARQL Server Status (Updates Allowed)",
+                        TitledBorder.DEFAULT_JUSTIFICATION
+                        , TitledBorder.DEFAULT_POSITION, BorderFactory
+                            .createTitledBorder("").getTitleFont(),
+                        Color.red.darker()));
+
+          }
           sparqlServerInfo.setForeground(Color.blue.darker());
           updateSparqlServerInfo();
           setStatus("SPARQL server started on port "
-              + SparqlServer.getInstance().getListenerPort());
+              + SparqlServer.getInstance().getListenerPort()
+              + (SparqlServer.getInstance().areRemoteUpdatesPermitted() ? " (Remote Updates Enabled)"
+                  : ""));
         }
       } else {
         JOptionPane.showMessageDialog(this,
@@ -3227,6 +3262,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       setStatus("SPARQL server is not running");
     }
 
+    sparqlServerInfo.setBorder(BorderFactory
+        .createTitledBorder("SPARQL Server Status"));
     sparqlServerInfo.setText("Shutdown");
     sparqlServerInfo.setForeground(Color.black);
 
@@ -3237,9 +3274,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Show the SPARQL Server Status
    */
   private void updateSparqlServerInfo() {
-    sparqlServerInfo.setText("Port:"
-        + SparqlServer.getInstance().getListenerPort() + "  Requests: "
-        + SparqlServer.getInstance().getConnectionsHandled());
+    sparqlServerInfo
+        .setText("Port:"
+            + SparqlServer.getInstance().getListenerPort()
+            + "  Requests: "
+            + SparqlServer.getInstance().getConnectionsHandled());
   }
 
   /**
@@ -3264,7 +3303,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     if (!SparqlServer.getInstance().isActive()) {
       final SparqlServerConfigurationDialog dialog = new SparqlServerConfigurationDialog(
           this, SparqlServer.getInstance().getListenerPort(), SparqlServer
-              .getInstance().getMaxRuntimeSeconds());
+              .getInstance().getMaxRuntimeSeconds(), SparqlServer.getInstance()
+              .areRemoteUpdatesPermitted());
       if (dialog.isAccepted()) {
         if (dialog.getPortNumber() != null && dialog.getPortNumber() > 0) {
           SparqlServer.getInstance().setListenerPort(dialog.getPortNumber());
@@ -3287,6 +3327,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
                       + dialog.getMaxRuntime(), "Illegal Maximum Runtime",
                   JOptionPane.ERROR_MESSAGE);
         }
+        SparqlServer.getInstance().setRemoteUpdatesPermitted(
+            dialog.areRemoteUpdatesAllowed());
       }
     }
   }
@@ -4017,21 +4059,75 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * @return The message to be presented on the status line
    */
   private String sparqlExecution() {
-    long numResults;
+    String statusMessage;
 
     setStatus("Running SPARQL query...");
     setWaitCursor(true);
-    // sparqlResults.setText("");
-    numResults = callSparqlEngine();
 
+    // Check if this is a local model SPARQL update
+    if (sparqlInput.getText().toLowerCase().indexOf("delete") > -1
+        || sparqlInput
+            .getText().toLowerCase().indexOf("insert") > -1) {
+      callSparqlUpdateEngine();
+      statusMessage = "Update completed";
+    } else {
+      final long numResults = callSparqlEngine();
+      statusMessage = "Number of query results: " + numResults;
+    }
     areSparqlResultsInSyncWithModel = true;
     colorCodeTabs();
 
-    return "Number of query results: " + numResults;
+    return statusMessage;
   }
 
   /**
-   * Use the SPARQL engine and report the results
+   * Handle a SPARQL update request
+   */
+  private void callSparqlUpdateEngine() {
+    String serviceUrl;
+    final SparqlTableModel tableModel = (SparqlTableModel) sparqlResultsTable
+        .getModel();
+    final SparqlResultItemRenderer renderer = new SparqlResultItemRenderer(
+        setupAllowMultilineResultOutput.isSelected());
+    renderer.setFont(sparqlResultsTable.getFont());
+    sparqlResultsTable.setDefaultRenderer(SparqlResultItem.class, renderer);
+    tableModel.displayMessageInTable("SPARQL Update, No Results",
+        new String[] {});
+
+    serviceUrl = ((String) sparqlServiceUrl.getSelectedItem()).trim();
+
+    if (sparqlServiceUrl.getSelectedIndex() == 0
+        || serviceUrl.length() == 0) {
+      // Updating the local model
+      final GraphStore graphStore = GraphStoreFactory.create(ontModel);
+      UpdateAction.parseExecute(sparqlInput.getText(), graphStore);
+
+      // Assume the update modified the model: update counts then invalidate the
+      // tree and inferences
+      showModelTripleCounts();
+      isTreeInSyncWithModel = false;
+      areInferencesInSyncWithModel = false;
+    } else {
+      // Updating via a remote endpoint
+      final UpdateRequest request = UpdateFactory.create(sparqlInput.getText());
+      UpdateProcessor processor;
+
+      if (sparqlServiceUserId.getText().trim().length() == 0) {
+        processor = UpdateExecutionFactory
+            .createRemote(request, serviceUrl);
+      } else {
+        processor = UpdateExecutionFactory
+            .createRemote(request, serviceUrl, new SimpleAuthenticator(
+                sparqlServiceUserId.getText(),
+                sparqlServicePassword.getPassword()));
+
+      }
+      processor.execute();
+    }
+  }
+
+  /**
+   * Handle a SPARQL query request, use the SPARQL engine and report the results
    * 
    * @return The number of resulting rows
    */
@@ -4340,16 +4436,28 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
     } else {
       LOGGER.info("Loaded assertions" + " using format: " + modelFormat);
+      showModelTripleCounts();
+    }
+    assertionLanguage = modelFormat;
+
+    setTitle();
+  }
+
+  /**
+   * Display the triple counts from the local model
+   */
+  private void showModelTripleCounts() {
+    if (ontModel != null) {
       assertedTripleCount.setText(INTEGER_COMMA_FORMAT.format(ontModel
           .getBaseModel().size()) + "");
       inferredTripleCount.setText(INTEGER_COMMA_FORMAT.format(ontModel.size()
           - ontModel.getBaseModel()
               .size())
           + "");
+    } else {
+      assertedTripleCount.setText(NOT_APPLICABLE_DISPLAY);
+      inferredTripleCount.setText(NOT_APPLICABLE_DISPLAY);
     }
-    assertionLanguage = modelFormat;
-
-    setTitle();
   }
 
   /**
@@ -4411,7 +4519,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * TODO aggregate items from duplicate nodes
    * 
    * TODO Consider more efficient approach that scans the model once rather than
-   * quering for each class, individual and property collection
+   * querying for each class, individual and property collection
    * 
    * @see OntologyTreeCellRenderer
    * 
@@ -4890,8 +4998,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     ontModel = null;
-    assertedTripleCount.setText(NOT_APPLICABLE_DISPLAY);
-    inferredTripleCount.setText(NOT_APPLICABLE_DISPLAY);
+    showModelTripleCounts();
 
     reasoningLevel.setToolTipText(((ReasonerSelection) reasoningLevel
         .getSelectedItem()).getDescription());

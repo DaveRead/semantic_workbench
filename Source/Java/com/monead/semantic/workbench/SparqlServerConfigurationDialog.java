@@ -10,6 +10,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
@@ -66,6 +67,11 @@ public class SparqlServerConfigurationDialog extends JDialog implements
   private JComboBox maxRuntime;
 
   /**
+   * Allow remote updates to the model
+   */
+  private JCheckBox supportRemoteUpdate;
+
+  /**
    * The OK button
    */
   private JButton okay;
@@ -89,12 +95,14 @@ public class SparqlServerConfigurationDialog extends JDialog implements
    *          The current port number
    * @param currentMaxRuntime
    *          The current maximum query runtime
+   * @param remoteUpdateAllowed
+   *          Are remote updates supported
    */
   public SparqlServerConfigurationDialog(JFrame parent, int currentPort,
-      int currentMaxRuntime) {
+      int currentMaxRuntime, boolean remoteUpdateAllowed) {
     super(parent, "SPARQL Server Configuration", true);
 
-    setupGui(currentPort, currentMaxRuntime);
+    setupGui(currentPort, currentMaxRuntime, remoteUpdateAllowed);
     GuiUtilities.centerWindow(this, parent);
 
     setVisible(true);
@@ -107,9 +115,11 @@ public class SparqlServerConfigurationDialog extends JDialog implements
    *          The current port number
    * @param currentMaxRuntime
    *          The current maximum query runtime
+   * @param remoteUpdateAllowed
+   *          Are remote updates supported
    */
   private void setupGui(int currentPort,
-      int currentMaxRuntime) {
+      int currentMaxRuntime, boolean remoteUpdateAllowed) {
     JPanel tempPanel;
     getContentPane().setLayout(new GridLayout(0, 1));
 
@@ -122,14 +132,17 @@ public class SparqlServerConfigurationDialog extends JDialog implements
     tempPanel.setLayout(new GridLayout(0, 2));
     tempPanel.add(new JLabel("Server Port Number: "));
     tempPanel.add(portNumber = new JTextField(5));
-
     portNumber.setText(currentPort + "");
 
     tempPanel.add(new JLabel("Max Query Runtime (seconds): "));
     tempPanel.add(maxRuntime = new JComboBox(MAX_TIME_OPTIONS));
-    getContentPane().add(tempPanel);
-
     maxRuntime.setSelectedItem(currentMaxRuntime + "");
+
+    tempPanel.add(new JLabel("Remote Updates Allowed: "));
+    tempPanel.add(supportRemoteUpdate = new JCheckBox());
+    supportRemoteUpdate.setSelected(remoteUpdateAllowed);
+
+    getContentPane().add(tempPanel);
 
     tempPanel = new JPanel();
     tempPanel.setLayout(new FlowLayout());
@@ -194,6 +207,15 @@ public class SparqlServerConfigurationDialog extends JDialog implements
     }
 
     return value;
+  }
+
+  /**
+   * Are remote updates allowed
+   * 
+   * @return True if remote updates are allowed
+   */
+  public boolean areRemoteUpdatesAllowed() {
+    return supportRemoteUpdate.isSelected();
   }
 
   @Override

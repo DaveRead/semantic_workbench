@@ -56,6 +56,11 @@ public class SparqlServer extends Observable implements Runnable {
   private ServerSocket serverSocket;
 
   /**
+   * Are remote updates to the model allowed. e.g. SPARQL 1.1. updates
+   */
+  private boolean remoteUpdatePermitted;
+
+  /**
    * The number of connections processed by this server
    */
   private long connectionsHandled;
@@ -130,7 +135,7 @@ public class SparqlServer extends Observable implements Runnable {
   private synchronized void processRequest(Socket connection) {
     ++connectionsHandled;
     final Thread thread = new Thread(new SparqlRunner(connection, model,
-        maxRuntimeSeconds));
+        maxRuntimeSeconds, remoteUpdatePermitted));
     thread.setName("SPARQL Request Handler-" + connectionsHandled);
     thread.start();
     setChanged();
@@ -204,6 +209,28 @@ public class SparqlServer extends Observable implements Runnable {
       throw new IllegalStateException(
           "The Sparql Server must be shutdown in order to change the listening port");
     }
+  }
+
+  /**
+   * Select whether remote updates are permitted. if enabled then SPARQL 1.1.
+   * updates are supported (e.g. insert, delete)
+   * 
+   * @param updatePermitted
+   *          True if remote updates to the model are permitted
+   */
+  public void setRemoteUpdatesPermitted(boolean updatePermitted) {
+    remoteUpdatePermitted = updatePermitted;
+  }
+
+  /**
+   * Determine whether remote updates to the model are permitted.
+   * 
+   * @see #setRemoteUpdatesPermitted(boolean)
+   * 
+   * @return True if remote updates are permitted
+   */
+  public boolean areRemoteUpdatesPermitted() {
+    return remoteUpdatePermitted;
   }
 
   /**
