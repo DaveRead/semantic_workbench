@@ -197,6 +197,8 @@ import com.monead.semantic.workbench.utilities.TextProcessing;
  * 
  * TODO Expand tree node option, expands all nodes under the selected node
  * 
+ * TODO Add option for creating a tree of individuals in the tree view
+ * 
  * @author David Read
  * 
  */
@@ -205,7 +207,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "1.9.3";
+  public static final String VERSION = "1.9.4";
 
   /**
    * Serial UID
@@ -1404,7 +1406,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
     }
 
-    // Sparql server max runtime
+    // SPARQL server max runtime
     value = properties.getProperty(PROP_SPARQL_SERVER_MAX_RUNTIME);
     if (value != null) {
       try {
@@ -1423,7 +1425,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
     }
 
-    // Sparql server remote updates permitted
+    // SPARQL server remote updates permitted
     SparqlServer.getInstance().setRemoteUpdatesPermitted(
         properties.getProperty(PROP_SPARQL_SERVER_ALLOW_REMOTE_UPDATE, "N")
             .toUpperCase().startsWith("Y"));

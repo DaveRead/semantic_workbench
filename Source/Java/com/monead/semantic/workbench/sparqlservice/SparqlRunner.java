@@ -51,6 +51,10 @@ public class SparqlRunner implements Runnable {
       "EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
 
   /**
+   * The query parameter in the GET and POST requests
+   */
+  private static final String QUERY_PARAMETER_NAME = "QUERY=";
+  /**
    * Max processing time for handling a SPARQL query
    */
   private long maxRuntimeMilliseconds;
@@ -422,9 +426,8 @@ public class SparqlRunner implements Runnable {
     for (String line : parsed) {
       ++postContentBeginningLine;
       LOGGER.debug("One Line: " + line);
-      line = line.toLowerCase();
 
-      if (line.startsWith("content-length:")) {
+      if (line.toLowerCase().startsWith("content-length:")) {
         try {
           contentLength = Integer.parseInt(line.substring(
               "Content-Length:".length()).trim());
@@ -434,13 +437,13 @@ public class SparqlRunner implements Runnable {
               .warn("Could not parse content length, relying on socket timeout since determining end of message isn't possible ("
                   + line + ")");
         }
-      } else if (line.startsWith("get")) {
-        queryStart = line.toUpperCase().indexOf("QUERY=");
+      } else if (line.toLowerCase().startsWith("get")) {
+        queryStart = line.toUpperCase().indexOf(QUERY_PARAMETER_NAME);
         if (queryStart > -1) {
-          sparql = line.substring(queryStart + "QUERY=".length());
+          sparql = line.substring(queryStart + QUERY_PARAMETER_NAME.length());
           sparql = sparql.split(" ")[0]; // Remove the HTTP/1.X suffix
         }
-      } else if (line.startsWith("post")) {
+      } else if (line.toLowerCase().startsWith("post")) {
         isPost = true;
         LOGGER.debug("POST Request");
       } else if (line.trim().length() == 0) {
@@ -470,6 +473,12 @@ public class SparqlRunner implements Runnable {
         receivedContentLength += charsRead;
         LOGGER.debug("Payload length: " + receivedContentLength
             + "  Content length: " + contentLength);
+      }
+      
+      sparql = sparql.trim();
+      
+      if (sparql.toUpperCase().startsWith(QUERY_PARAMETER_NAME)) {
+        sparql = sparql.substring(QUERY_PARAMETER_NAME.length());
       }
     }
 
