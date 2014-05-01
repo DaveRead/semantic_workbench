@@ -25,16 +25,21 @@ package com.monead.semantic.workbench.tree;
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
  * @author David Read
- *
+ * 
  */
 public class WrapperInstance extends Wrapper {
   /**
    * Create the wrapper for an instance
    * 
-   * @param localName The local name of the instance
-   * @param uri The local name of the URI
+   * @param localName
+   *          The local name of the instance
+   * @param uri
+   *          The local name of the URI
+   * @param showUri
+   *          Whether to show the URI in the string representation of the
+   *          component
    */
-  public WrapperInstance(String localName, String uri) {
-    super(localName, uri);
+  public WrapperInstance(String localName, String uri, boolean showUri) {
+    super(localName, uri, showUri);
   }
 }

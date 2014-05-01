@@ -35,8 +35,11 @@ public class WrapperClass extends Wrapper {
    *          The local name of the class
    * @param uri
    *          The URI of the class
+   * @param showUri
+   *          Whether to show the URI in the string representation of the
+   *          component
    */
-  public WrapperClass(String localName, String uri) {
-    super(localName, uri);
+  public WrapperClass(String localName, String uri, boolean showUri) {
+    super(localName, uri, showUri);
   }
 }

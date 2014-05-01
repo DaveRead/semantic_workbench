@@ -89,7 +89,7 @@ import org.apache.commons.httpclient.HttpStatus;
 import org.apache.jena.atlas.web.auth.SimpleAuthenticator;
 import org.apache.jena.riot.RiotException;
 import org.apache.log4j.Logger;
-//import org.mindswap.pellet.jena.PelletReasonerFactory;
+import org.mindswap.pellet.jena.PelletReasonerFactory;
 import org.mindswap.pellet.utils.VersionInfo;
 
 //import com.complexible.stardog.StardogException;
@@ -199,6 +199,9 @@ import com.monead.semantic.workbench.utilities.TextProcessing;
  * 
  * TODO Add option for creating a tree of individuals in the tree view
  * 
+ * TODO Log SPARQL response that cannot be parsed (e.g. error or JSON format,
+ * etc)
+ * 
  * @author David Read
  * 
  */
@@ -207,7 +210,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "1.9.4";
+  public static final String VERSION = "1.9.5";
 
   /**
    * Serial UID
@@ -623,6 +626,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private static final String PROP_SPARQL_SERVER_ALLOW_REMOTE_UPDATE = "SparqlServerAllowRemoteUpdate";
 
   /**
+   * Property file property name: display the FQN of classes, properties and
+   * objects in the tree view
+   */
+  private static final String PROP_DISPLAY_FQN_IN_TREE_VIEW = "TreeShowFqn";
+
+  /**
    * Configuration properties
    */
   private Properties properties;
@@ -872,6 +881,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private JCheckBoxMenuItem filterEnableFilters;
 
   /**
+   * Set whether the FQN for classes and objects are displayed in the tree
+   */
+  private JCheckBoxMenuItem showFqnInTree;
+
+  /**
    * Set whether anonymous classes, individuals and properties are shown in the
    * tree
    */
@@ -1114,6 +1128,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
             "OWL DL/OWL",
             "An OWL DL model which uses the OWL rules inference engine for additional entailments",
             OntModelSpec.OWL_DL_MEM_RULE_INF));
+
+    REASONER_SELECTIONS.add(new ReasonerSelection("Pellet",
+        "The Pellet reasoner", PelletReasonerFactory.THE_SPEC));
 
   }
 
@@ -1360,6 +1377,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     filterEnableFilters.setSelected(properties
         .getProperty(PROP_ENFORCE_FILTERS_IN_TREE_VIEW, "Y").toUpperCase()
+        .startsWith("Y"));
+
+    showFqnInTree.setSelected(properties
+        .getProperty(PROP_DISPLAY_FQN_IN_TREE_VIEW, "Y").toUpperCase()
         .startsWith("Y"));
 
     filterShowAnonymousNodes.setSelected(properties
@@ -1902,6 +1923,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     properties.setProperty(PROP_ENFORCE_FILTERS_IN_TREE_VIEW,
         filterEnableFilters.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
             : DEFAULT_PROPERTY_VALUE_NO);
+
+    properties.setProperty(PROP_DISPLAY_FQN_IN_TREE_VIEW, showFqnInTree
+        .isSelected() ? DEFAULT_PROPERTY_VALUE_YES : DEFAULT_PROPERTY_VALUE_NO);
+
     properties.setProperty(PROP_DISPLAY_ANONYMOUS_NODES_IN_TREE_VIEW,
         filterShowAnonymousNodes.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
             : DEFAULT_PROPERTY_VALUE_NO);
@@ -2851,6 +2876,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     filterShowAnonymousNodes.setToolTipText(
         "Include anonymous nodes in the tree view");
     menu.add(filterShowAnonymousNodes);
+
+    showFqnInTree = new JCheckBoxMenuItem("Show FQN In Tree");
+    showFqnInTree.setSelected(false);
+    showFqnInTree
+        .setToolTipText("Show the fully qualified name for classes, properties and objects in the tree");
+    menu.add(showFqnInTree);
 
     menu.addSeparator();
 
@@ -4609,7 +4640,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           // Show anonymous classes based on configuration
           if (filterShowAnonymousNodes.isSelected()) {
             oneClassNode = new DefaultMutableTreeNode(new WrapperClass(ontClass
-                .getId().getLabelString(), "[Anonymous class]"));
+                .getId().getLabelString(), "[Anonymous class]", true));
           } else {
             LOGGER.debug("Skip anonymous class: "
                 + ontClass.getId().getLabelString());
@@ -4617,7 +4648,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           }
         } else {
           oneClassNode = new DefaultMutableTreeNode(new WrapperClass(ontClass
-              .getLocalName(), ontClass.getURI()));
+              .getLocalName(), ontClass.getURI(), showFqnInTree.isSelected()));
           LOGGER.debug("Add class node: " + ontClass
               .getLocalName()
               + " (" + ontClass.getURI() + ")");
@@ -4657,11 +4688,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
                 oneIndividualNode = new DefaultMutableTreeNode(
                     new WrapperInstance(
                         individual.getId().getLabelString(),
-                        "[Anonymous individual]"));
+                        "[Anonymous individual]", true));
               } else {
                 oneIndividualNode = new DefaultMutableTreeNode(
                     new WrapperInstance(individual.toString(),
-                        "[null label - anonymous individual]"));
+                        "[null label - anonymous individual]", true));
               }
             } else {
               LOGGER.debug("Skip anonymous individual: "
@@ -4671,10 +4702,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           } else if (individual.getLocalName() != null) {
             oneIndividualNode = new DefaultMutableTreeNode(new WrapperInstance(
                 individual
-                    .getLocalName(), individual.getURI()));
+                    .getLocalName(), individual.getURI(),
+                showFqnInTree.isSelected()));
           } else {
             oneIndividualNode = new DefaultMutableTreeNode(new WrapperInstance(
-                individual.toString(), "[null name - non anonymous]"));
+                individual.toString(), "[null name - non anonymous]", true));
           }
           oneClassNode.add(oneIndividualNode);
 
@@ -4714,12 +4746,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
                   onePropertyNode = new DefaultMutableTreeNode(
                       new WrapperDataProperty(
                           property.getId().getLabelString(),
-                          "[Anonymous data property]"));
+                          "[Anonymous data property]", true));
                 } else {
                   onePropertyNode = new DefaultMutableTreeNode(
                       new WrapperObjectProperty(
                           property.getId().getLabelString(),
-                          "[Anonymous object property]"));
+                          "[Anonymous object property]", true));
                 }
               } else {
                 LOGGER.debug("Skip anonymous property: "
@@ -4731,11 +4763,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
               if (rdfNode.isLiteral()) {
                 onePropertyNode = new DefaultMutableTreeNode(
                     new WrapperDataProperty(property
-                        .getLocalName(), property.getURI()));
+                        .getLocalName(), property.getURI(),
+                        showFqnInTree.isSelected()));
               } else {
                 onePropertyNode = new DefaultMutableTreeNode(
                     new WrapperObjectProperty(property
-                        .getLocalName(), property.getURI()));
+                        .getLocalName(), property.getURI(),
+                        showFqnInTree.isSelected()));
               }
             } else {
               LOGGER
@@ -4771,7 +4805,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
                   onePropertyNode.add(new DefaultMutableTreeNode(
                       new WrapperInstance(
                           statement.getResource().getId().getLabelString(),
-                          "[Anonymous individual]")));
+                          "[Anonymous individual]", true)));
                 } else {
                   LOGGER.debug("Skip anonymous individual: "
                       + statement.getResource().getId().getLabelString());
@@ -4782,7 +4816,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
                     new WrapperInstance(
                         statement.getResource().getLocalName(), statement
                             .getResource()
-                            .getURI())));
+                            .getURI(), showFqnInTree.isSelected())));
               }
             }
           }

@@ -45,6 +45,11 @@ public abstract class Wrapper {
   private String uri;
 
   /**
+   * Display the URI when getting the string representation of this component
+   */
+  private boolean showUri;
+
+  /**
    * Accepts the node's local name and full uri.
    * 
    * @param pLocalName
@@ -53,10 +58,26 @@ public abstract class Wrapper {
    *          The URI of the ontology component
    */
   public Wrapper(String pLocalName, String pUri) {
+    this(pLocalName, pUri, true);
+  }
+
+  /**
+   * Accepts the node's local name and full uri.
+   * 
+   * @param pLocalName
+   *          The local name of the ontology's URI component
+   * @param pUri
+   *          The URI of the ontology component
+   * @param pShowUri
+   *          Whether to show the URI in the string representation of the
+   *          component
+   */
+  public Wrapper(String pLocalName, String pUri, boolean pShowUri) {
     uuid = UUID.randomUUID();
 
     localName = pLocalName;
     uri = pUri;
+    showUri = pShowUri;
   }
 
   /**
@@ -92,6 +113,6 @@ public abstract class Wrapper {
    * @return The local name with appended URI in parentheses
    */
   public String toString() {
-    return getLocalName() + " (" + getUri() + ")";
+    return getLocalName() + (showUri ? " (" + getUri() + ")" : "");
   }
 }

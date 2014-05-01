@@ -25,13 +25,14 @@ package com.monead.semantic.workbench.tree;
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
  * @author David Read
- *
+ * 
  */
 public class WrapperLiteral extends Wrapper {
   /**
    * Create the wrapper for a literal
    * 
-   * @param value The literal value
+   * @param value
+   *          The literal value
    */
   public WrapperLiteral(String value) {
     super(value, null);
@@ -40,7 +41,7 @@ public class WrapperLiteral extends Wrapper {
   /**
    * Specialized since a literal value doesn't have a URI.
    * 
-   * The value is placed in the localname attribute of the 
+   * The value is placed in the localname attribute of the
    * Wrapper.
    * 
    * @return The local name (which is the literal value)

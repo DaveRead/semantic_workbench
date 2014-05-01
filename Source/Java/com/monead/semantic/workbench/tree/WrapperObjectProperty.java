@@ -31,10 +31,15 @@ public class WrapperObjectProperty extends Wrapper {
   /**
    * Create a wrapper for a property
    * 
-   * @param localName The local name of the property
-   * @param uri The URI of the property
+   * @param localName
+   *          The local name of the property
+   * @param uri
+   *          The URI of the property
+   * @param showUri
+   *          Whether to show the URI in the stirng representation of the
+   *          component
    */
-  public WrapperObjectProperty(String localName, String uri) {
-    super(localName, uri);
+  public WrapperObjectProperty(String localName, String uri, boolean showUri) {
+    super(localName, uri, showUri);
   }
 }

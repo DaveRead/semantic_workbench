@@ -35,8 +35,11 @@ public class WrapperDataProperty extends Wrapper {
    *          The local name of the property
    * @param uri
    *          The URI of the property
+   * @param showUri
+   *          Whether to show the URI in the string representation of the
+   *          component
    */
-  public WrapperDataProperty(String localName, String uri) {
-    super(localName, uri);
+  public WrapperDataProperty(String localName, String uri, boolean showUri) {
+    super(localName, uri, showUri);
   }
 }

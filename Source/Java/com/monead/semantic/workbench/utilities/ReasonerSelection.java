@@ -3,7 +3,7 @@ package com.monead.semantic.workbench.utilities;
 import com.hp.hpl.jena.ontology.OntModelSpec;
 
 /**
- * Represents a resoner that can be selected when creating a model.
+ * Represents a reasoner that can be selected when creating a model.
  * 
  * @author David Read
  * 
