@@ -14,7 +14,9 @@
     <module name="LineLength">
       <property name="max" value="150"/>
     </module>
-    <module name="ParameterNumber"/>
+    <module name="ParameterNumber">
+    	<property name="max" value="10"/>
+    </module>
   	<module name="ExecutableStatementCount">
   		<property name="max" value="125"/>
   	</module>
@@ -27,7 +29,7 @@
   	  	<property name="maxPublic" value="30"/>
   	  	<property name="maxProtected" value="20"/>
   	  	<property name="maxPackage" value="20"/>
-  	  	<property name="maxPrivate" value="110"/>
+  	  	<property name="maxPrivate" value="120"/>
     </module>
     <module name="JavadocMethod">
       <property name="suppressLoadErrors" value="true"/>

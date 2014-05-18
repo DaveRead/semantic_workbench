@@ -43,10 +43,13 @@ public class SparqlTableModel extends AbstractTableModel {
    *          The SPARQL query
    * @param ontModel
    *          The model being queried
+   * @param applyFormattingToLiteralValues
+   *          Whether to apply XSD-based formatting rules to literal property
+   *          values
    * @param addLiteralFlag
    *          Whether literal values should be flagged in the output
    * @param includeDataType
-   *          Whether literals whould be tagged with their data type
+   *          Whether literals should be tagged with their data type
    * @param useFqn
    *          Whether the fully qualified name (URL) should be displayed instead
    *          of a prefix
@@ -54,9 +57,11 @@ public class SparqlTableModel extends AbstractTableModel {
    *          Whether images should be displayed
    */
   public SparqlTableModel(ResultSet results, Query query, OntModel ontModel,
-      boolean addLiteralFlag, boolean includeDataType,
+      boolean applyFormattingToLiteralValues, boolean addLiteralFlag,
+      boolean includeDataType,
       boolean useFqn, boolean displayImages) {
-    setupModel(results, query, ontModel, addLiteralFlag, includeDataType,
+    setupModel(results, query, ontModel, applyFormattingToLiteralValues,
+        addLiteralFlag, includeDataType,
         useFqn, displayImages);
   }
 
@@ -70,7 +75,8 @@ public class SparqlTableModel extends AbstractTableModel {
   /**
    * Get the class of the data in the column
    * 
-   * @param columnIndex The column number
+   * @param columnIndex
+   *          The column number
    * 
    * @return The class of the column's values
    */
@@ -84,8 +90,10 @@ public class SparqlTableModel extends AbstractTableModel {
    * useful for notifying the user if the SPARQL results are being sent directly
    * to a file rather than to the GUI table.
    * 
-   * @param heading The heading to be displayed at the top of the message
-   * @param rowValues The array of strings to be displayed
+   * @param heading
+   *          The heading to be displayed at the top of the message
+   * @param rowValues
+   *          The array of strings to be displayed
    */
   public void displayMessageInTable(String heading, String[] rowValues) {
     rows.clear();
@@ -132,6 +140,9 @@ public class SparqlTableModel extends AbstractTableModel {
    *          The SPARQL query
    * @param ontModel
    *          The model being queried
+   * @param applyFormattingToLiteralValues
+   *          Whether to apply XSD-based formatting rules to literal property
+   *          values
    * @param addLiteralFlag
    *          Whether literal values should be flagged in the output
    * @param includeDataType
@@ -143,10 +154,12 @@ public class SparqlTableModel extends AbstractTableModel {
    *          Whether images should be displayed
    */
   public void setupModel(ResultSet results, Query query, OntModel ontModel,
-      boolean addLiteralFlag, boolean includeDataType,
+      boolean applyFormattingToLiteralValues, boolean addLiteralFlag,
+      boolean includeDataType,
       boolean useFqn, boolean displayImages) {
     final SparqlResultsFormatter formatter = new SparqlResultsFormatter(query,
-        ontModel, addLiteralFlag, includeDataType, useFqn);
+        ontModel, applyFormattingToLiteralValues, addLiteralFlag,
+        includeDataType, useFqn);
     List<String> columns;
     rows.clear();
     columnLabels.clear();

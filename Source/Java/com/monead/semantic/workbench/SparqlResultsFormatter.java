@@ -7,6 +7,7 @@ import org.apache.log4j.Logger;
 import com.hp.hpl.jena.ontology.OntModel;
 import com.hp.hpl.jena.query.Query;
 import com.hp.hpl.jena.query.QuerySolution;
+import com.monead.semantic.workbench.utilities.ValueFormatter;
 
 /**
  * Formats SPARQL results using the configuration settings sent to the
@@ -30,6 +31,11 @@ public class SparqlResultsFormatter {
    * null.
    */
   private OntModel ontModel;
+
+  /**
+   * Whether to apply XSD-based formatting rules to literal property values
+   */
+  private boolean applyFormattingToLiteralValues;
 
   /**
    * Set if literals are to be prefixed with an identification string of "Lit:"
@@ -56,6 +62,9 @@ public class SparqlResultsFormatter {
    * @param pOntModel
    *          The ontological model against which the SPARQL query was run. May
    *          be null.
+   * @param pApplyFormattingToLiteralValues
+   *          Whether to apply XSD-based formatting rules to literal property
+   *          values
    * @param pAddLiteralFlag
    *          Whether literal values should be prepended with a "Lit:"
    *          identifier
@@ -67,10 +76,12 @@ public class SparqlResultsFormatter {
    *          prefix will be used if defined for the namespace
    */
   public SparqlResultsFormatter(Query pQuery, OntModel pOntModel,
-      boolean pAddLiteralFlag, boolean pIncludeDataType,
+      boolean pApplyFormattingToLiteralValues, boolean pAddLiteralFlag,
+      boolean pIncludeDataType,
       boolean pUseFqn) {
     query = pQuery;
     ontModel = pOntModel;
+    applyFormattingToLiteralValues = pApplyFormattingToLiteralValues;
     addLiteralFlag = pAddLiteralFlag;
     includeDataType = pIncludeDataType;
     useFqn = pUseFqn;
@@ -96,13 +107,34 @@ public class SparqlResultsFormatter {
       formatted = new SparqlResultItem("");
     } else if (solution.get(variableName).isLiteral()) {
       String literal = solution.getLiteral(variableName).toString();
-      int caratPosit;
-      if (!includeDataType && literal != null
-          && (caratPosit = literal.indexOf('^')) > -1) {
-        literal = literal.substring(0, caratPosit);
+      int caratPosit = -1;
+      String xsdType = null;
+
+      if (literal != null) {
+        caratPosit = literal.indexOf('^');
+        if (caratPosit > -1) {
+          xsdType = literal.substring(caratPosit + 2);
+          literal = literal.substring(0, caratPosit);
+        }
       }
+
       if (addLiteralFlag) {
         literal = "Lit: " + literal;
+      }
+
+      if (applyFormattingToLiteralValues && xsdType != null) {
+        literal = ValueFormatter.getInstance().applyFormat(literal, xsdType);
+        /*
+         * if (xsdType.endsWith("double") || xsdType.endsWith("float")) {
+         * literal = decimalFormat(literal);
+         * } else if (xsdType.equals("xsd:decimal")) {
+         * literal = integerFormat(literal);
+         * }
+         */
+      }
+
+      if (xsdType != null && includeDataType) {
+        literal += "^^" + xsdType;
       }
 
       formatted = new SparqlResultItem(literal);
