@@ -3,12 +3,15 @@ package com.monead.semantic.workbench.utilities;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.text.SimpleDateFormat;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.Point;
 import java.awt.Window;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import javax.swing.JPanel;
+import javax.swing.JTextArea;
+
 import org.apache.log4j.Logger;
 import javax.swing.table.TableColumn;
 import javax.swing.JTable;
@@ -37,7 +40,6 @@ import java.text.ParseException;
  * @version $Id$
  */
 public class GuiUtilities {
-
   /**
    * Date format used when inserting dates into the database as Strings.
    */
@@ -46,7 +48,7 @@ public class GuiUtilities {
   /**
    * Logger Instance
    */
-  private static Logger logger = Logger.getLogger(GuiUtilities.class);
+  private static final Logger LOGGER = Logger.getLogger(GuiUtilities.class);
 
   /**
    * Private since no one should create instances of this class.
@@ -209,12 +211,12 @@ public class GuiUtilities {
         // No idea what is going on - this recheck seems to always come back
         // with a sane value
         if (headerWidth > 10000) {
-          logger.debug("Header unusually wide ("
+          LOGGER.debug("Header unusually wide ("
               + headerWidth + "): calc again");
 
           headerWidth = comp.getPreferredSize().width;
 
-          logger.debug("Result of header recalc ("
+          LOGGER.debug("Result of header recalc ("
               + headerWidth + ")");
         }
       } catch (NullPointerException e) {
@@ -233,16 +235,16 @@ public class GuiUtilities {
       // No idea what is going on - this recheck seems to always come back
       // with a sane value
       if (cellWidth > 10000) {
-        logger.debug("Column unusually wide ("
+        LOGGER.debug("Column unusually wide ("
             + cellWidth + "): calc again");
 
         cellWidth = comp.getPreferredSize().width;
 
-        logger.debug("Result of recalc ("
+        LOGGER.debug("Result of recalc ("
             + cellWidth + ")");
       }
 
-      logger.debug("Initializing width of column "
+      LOGGER.debug("Initializing width of column "
             + i + ". "
             + "headerWidth = " + headerWidth
             + "; cellWidth = " + cellWidth
@@ -289,7 +291,7 @@ public class GuiUtilities {
           if ((ilThisLen = objlValue.toString().length()) > ilLen[ilCol]) {
             objlLongest[ilCol] = objlValue;
             ilLen[ilCol] = ilThisLen;
-            logger.debug("Get longest value, Checking(" + ilRow + "," + ilCol
+            LOGGER.debug("Get longest value, Checking(" + ilRow + "," + ilCol
                 + ")=" + ilThisLen);
           }
         }
@@ -316,5 +318,76 @@ public class GuiUtilities {
     panel.add(component);
 
     return panel;
+  }
+
+  /**
+   * Toggle commented text. This supports single-line comment characters
+   * (assumes comment characters precede each line, not multi-line comment
+   * character pairs).
+   * 
+   * @param jTextArea
+   *          The text area whose selected lines are to have comments toggled
+   * @param commentPattern
+   *          The single-line comment pattern - such as # for SPARQL or // for C
+   */
+  public static final void commentToggle(JTextArea jTextArea,
+      String commentPattern) {
+    final int selectionStart = jTextArea.getSelectionStart();
+    final int selectionEnd = jTextArea.getSelectionEnd();
+    final String text = jTextArea.getText();
+    final StringBuffer updatedText = new StringBuffer();
+    int caratPosition = jTextArea.getCaretPosition();
+    final Rectangle visible = jTextArea.getVisibleRect();
+
+    if (selectionEnd > selectionStart) {
+      final String[] lines = text.substring(selectionStart, selectionEnd)
+          .split("\\r?\\n", -1);
+
+      LOGGER.debug("Number of selected lines: " + lines.length);
+
+      // Start with the portion of query prior to the selection
+      if (selectionStart > 0) {
+        updatedText.append(text.substring(0, selectionStart));
+      }
+
+      // Toggle the comment character for each selected line (or partial line)
+      for (int line = 0; line < lines.length; ++line) {
+        if (line > 0) {
+          updatedText.append('\n');
+        }
+
+        /*
+         * If the selection ends at beginning of a line the user will not expect
+         * that line to be toggled
+         */
+        if (line + 1 == lines.length && lines[line].length() == 0) {
+          continue;
+        }
+
+        if (lines[line].trim().startsWith(commentPattern)) {
+          final int commentPatternStart = lines[line].indexOf(commentPattern);
+          if (commentPatternStart > 0) {
+            updatedText.append(lines[line].substring(0, commentPatternStart));
+          }
+          updatedText.append(lines[line].substring(lines[line]
+              .indexOf(commentPattern) + commentPattern.length()));
+          caratPosition -= commentPattern.length();
+        } else {
+          updatedText.append(commentPattern);
+          updatedText.append(lines[line]);
+          caratPosition += commentPattern.length();
+        }
+      }
+
+      // End with the portion of the query beyond the selection
+      if (selectionEnd < text.length()) {
+        updatedText.append(text.substring(selectionEnd));
+      }
+
+      // Replace the query text and place view at same place
+      jTextArea.setText(updatedText.toString());
+      jTextArea.setCaretPosition(caratPosition);
+      jTextArea.scrollRectToVisible(visible);
+    }
   }
 }
