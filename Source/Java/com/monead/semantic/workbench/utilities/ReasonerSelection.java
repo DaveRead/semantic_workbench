@@ -1,5 +1,7 @@
 package com.monead.semantic.workbench.utilities;
 
+import org.mindswap.pellet.jena.PelletReasonerFactory;
+
 import com.hp.hpl.jena.ontology.OntModelSpec;
 
 /**
@@ -8,37 +10,163 @@ import com.hp.hpl.jena.ontology.OntModelSpec;
  * @author David Read
  * 
  */
-public class ReasonerSelection {
+public enum ReasonerSelection {
+
+  /**
+   * RDFS model, No reasoning
+   */
+  RDFS_NONE("RDFS/None",
+      "An RDFS model which does no entailment reasoning",
+      OntModelSpec.RDFS_MEM),
+
+  /**
+   * RDFS model, Transitive reasoning
+   */
+  RDFS_TRANSITIVE("RDFS/Transitive",
+      "A RDFS model which supports transitive class-hierarchy inference",
+      OntModelSpec.RDFS_MEM_TRANS_INF),
+
+  /**
+   * RDFS model, RDFS reasoning
+   */
+  RDFS_RDFS(
+      "RDFS/RDFS",
+          "A RDFS model which uses a rule reasoner with RDFS-level entailment-rules",
+          OntModelSpec.RDFS_MEM_RDFS_INF),
+
+  /**
+   * OWL Lite model, No reasoning
+   */
+  OWLLITE_NONE("OWL Lite/None",
+          "An OWL Lite model which does no entailment reasoning",
+          OntModelSpec.OWL_LITE_MEM),
+
+  /**
+   * OWL Lite model, Transitive reasoning
+   */
+  OWLLITE_TRANSITIVE(
+      "OWL Lite/Transitive",
+          "An OWL Lite model which supports transitive class-hierarchy inference",
+          OntModelSpec.OWL_LITE_MEM_TRANS_INF),
+
+  /**
+   * OWL Lite model, RDFS reasoning
+   */
+  OWLLITE_RDFS(
+      "OWL Lite/RDFS",
+          "An OWL Lite model which uses a rule reasoner with RDFS-level entailment-rules",
+          OntModelSpec.OWL_LITE_MEM_RDFS_INF),
+
+  /**
+   * OWL Lite model, OWL reasoning
+   */
+  OWLLITE_OWL("OWL Lite/OWL",
+          "An OWL LLite model which uses a rule-based reasoner with OWL rules",
+          OntModelSpec.OWL_DL_MEM_RULE_INF),
+
+  /**
+   * OWL DL model, No reasoning
+   */
+  OWLDL_NONE("OWL DL/None",
+      "An OWL DL model which does no entailment reasoning",
+      OntModelSpec.OWL_DL_MEM),
+
+  /**
+   * OWL DL model, Transitive reasoning
+   */
+  OWLDL_TRANSITIVE(
+      "OWL DL/Transitive",
+          "An OWL DL model which supports transitive class-hierarchy inference",
+          OntModelSpec.OWL_DL_MEM_TRANS_INF),
+
+  /**
+   * OWL DL model, RDFS reasoning
+   */
+  OWLFL_RDFS(
+      "OWL DL/RDFS",
+          "An OWL DL model which uses a rule reasoner with RDFS-level entailment-rules",
+          OntModelSpec.OWL_DL_MEM_RDFS_INF),
+
+  /**
+   * OWL DL model, OWL reasoning
+   */
+  OWLDL_OWL("OWL DL/OWL",
+          "An OWL DL model which uses a rule-based reasoner with OWL rules",
+          OntModelSpec.OWL_DL_MEM_RULE_INF),
+
+  /**
+   * OWL Full model, No reasoning
+   */
+  OWLFULL_NONE("OWL Full/None",
+      "An OWL model which does no entailment reasoning",
+      OntModelSpec.OWL_MEM),
+
+  /**
+   * OWL Full model, Transitive reasoning
+   */
+  OWLFULL_TRANSITIVE(
+      "OWL Full/Transitive",
+          "An OWL Full model which supports transitive class-hierarchy inference",
+          OntModelSpec.OWL_MEM_TRANS_INF),
+
+  /**
+   * OWL Full model, OWL Micro reasoning
+   */
+  OWLFULL_OWLMICRO(
+      "OWL Full/OWL Micro",
+          "An OWL Full model which uses an optimised rule-based reasoner with OWL rules",
+          OntModelSpec.OWL_MEM_MICRO_RULE_INF),
+
+  /**
+   * OWL Full model, OWL Mini reasoning
+   */
+  OWLFULL_OWLMINI(
+      "OWL Full/OWL Mini",
+          "An OWL Full model which uses a rule-based reasoner with subset of OWL rules",
+          OntModelSpec.OWL_MEM_MINI_RULE_INF),
+
+  /**
+   * OWL Full model, OWL reasoning
+   */
+  OWLFULL_OWL("OWL Full/OWL",
+          "An OWL DL model which uses a rule-based reasoner with OWL rules",
+          OntModelSpec.OWL_MEM_RULE_INF),
+
+  /**
+   * Pellet reasoner
+   */
+  PELLET("Pellet", "The Pellet reasoner", PelletReasonerFactory.THE_SPEC);
+
   /**
    * The name of the reasoner
    */
-  private String name;
+  private final String reasonerName;
 
   /**
    * The description of the reasoner
    */
-  private String description;
+  private final String description;
 
   /**
    * The Jena specification for the reasoner
    */
-  private OntModelSpec jenaSpecification;
+  private final OntModelSpec jenaSpecification;
 
   /**
    * Creates the definition of a reasoner.
    * 
-   * @param pName
+   * @param pReasonerName
    *          The name displayed to the user
    * @param pDescription
    *          A description of the reasoner
    * @param pJenaSpecification
    *          The Jena constant used for this reasoner mode
    */
-  public ReasonerSelection(String pName, String pDescription,
+  ReasonerSelection(String pReasonerName, String pDescription,
       OntModelSpec pJenaSpecification) {
-    setName(pName);
-    setDescription(pDescription);
-    setJenaSpecification(pJenaSpecification);
+    reasonerName = pReasonerName;
+    description = pDescription;
+    jenaSpecification = pJenaSpecification;
   }
 
   /**
@@ -46,18 +174,8 @@ public class ReasonerSelection {
    * 
    * @return The reasoner name
    */
-  public String getName() {
-    return name;
-  }
-
-  /**
-   * Set the name of the reasoner
-   * 
-   * @param pNname
-   *          The name of the reasoner
-   */
-  private void setName(String pNname) {
-    name = pNname;
+  public String reasonerName() {
+    return reasonerName;
   }
 
   /**
@@ -65,18 +183,8 @@ public class ReasonerSelection {
    * 
    * @return The description of the reasoner
    */
-  public String getDescription() {
+  public String description() {
     return description;
-  }
-
-  /**
-   * Set the description of the reasoner
-   * 
-   * @param pDescription
-   *          The description of the reasoner
-   */
-  private void setDescription(String pDescription) {
-    description = pDescription;
   }
 
   /**
@@ -84,18 +192,8 @@ public class ReasonerSelection {
    * 
    * @return The Jena specification of the reasoner
    */
-  public OntModelSpec getJenaSpecification() {
+  public OntModelSpec jenaSpecification() {
     return jenaSpecification;
-  }
-
-  /**
-   * Set the Jena specification for the reasoner
-   * 
-   * @param pJenaSpecification
-   *          The Jena specification of the reasoner
-   */
-  private void setJenaSpecification(OntModelSpec pJenaSpecification) {
-    jenaSpecification = pJenaSpecification;
   }
 
   /**
@@ -104,6 +202,6 @@ public class ReasonerSelection {
    * @return The display name of the reasoner
    */
   public String toString() {
-    return getName();
+    return reasonerName();
   }
 }

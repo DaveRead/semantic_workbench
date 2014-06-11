@@ -29,7 +29,7 @@
   	  	<property name="maxPublic" value="30"/>
   	  	<property name="maxProtected" value="20"/>
   	  	<property name="maxPackage" value="20"/>
-  	  	<property name="maxPrivate" value="120"/>
+  	  	<property name="maxPrivate" value="130"/>
     </module>
     <module name="JavadocMethod">
       <property name="suppressLoadErrors" value="true"/>
@@ -84,7 +84,7 @@
     <module name="IllegalInstantiation"/>
 <!--    <module name="InnerAssignment"/> -->
     <module name="MagicNumber">
-      <property name="ignoreNumbers" value="-1,0,1,2,3,4,5,10,30,50,100,1000,10000"/>
+      <property name="ignoreNumbers" value="-1,0,1,2,3,4,5,10,20,30,50,100,1000,10000"/>
     </module>
     <module name="MissingSwitchDefault"/>
     <module name="DefaultComesLast"/>
@@ -125,7 +125,7 @@
     <module name="UpperEll"/>
   </module>
   <module name="FileLength">
-	<property name="max" value="7500"/>
+	<property name="max" value="8000"/>
   </module>
   <module name="JavadocPackage"/>
   <module name="NewlineAtEndOfFile"/>
