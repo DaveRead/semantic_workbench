@@ -2596,7 +2596,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     menu.setToolTipText(
         "Menu items related to editing the ontology");
 
-    editFind = new JMenuItem("Find");
+    editFind = new JMenuItem("Find (in assertions)");
     editFind.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F,
         KeyEvent.CTRL_MASK));
     editFind.setMnemonic(KeyEvent.VK_F);
@@ -2604,7 +2604,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     editFind.addActionListener(new FindAssertionsTextListener());
     menu.add(editFind);
 
-    editFindNextMatch = new JMenuItem("Next");
+    editFindNextMatch = new JMenuItem("Next (matching assertion text)");
     editFindNextMatch.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N,
         KeyEvent.CTRL_MASK));
     editFindNextMatch.setMnemonic(KeyEvent.VK_N);
@@ -4131,8 +4131,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     if (sparqlInput.getText().toLowerCase().indexOf("delete") > -1
         || sparqlInput
             .getText().toLowerCase().indexOf("insert") > -1) {
-      callSparqlUpdateEngine();
-      statusMessage = "Update completed";
+      statusMessage = callSparqlUpdateEngine();
     } else {
       statusMessage = callSparqlEngine();
     }
@@ -4144,11 +4143,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
   /**
    * Handle a SPARQL update request
+   * 
+   * @return The message to be presented on the status line
    */
-  private void callSparqlUpdateEngine() {
+  private String callSparqlUpdateEngine() {
     String serviceUrl;
-    // final SparqlTableModel tableModel = (SparqlTableModel) sparqlResultsTable
-    // .getModel();
+    String message = "Update completed";
+
     final SparqlTableModel tableModel = new SparqlTableModel();
     final SparqlResultItemRenderer renderer = new SparqlResultItemRenderer(
         setupAllowMultilineResultOutput.isSelected());
@@ -4156,17 +4157,29 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     sparqlResultsTable.setDefaultRenderer(SparqlResultItem.class, renderer);
     tableModel.displayMessageInTable("SPARQL Update, No Results",
         new String[] {});
+    sparqlResultsTable.setModel(tableModel);
 
     serviceUrl = ((String) sparqlServiceUrl.getSelectedItem()).trim();
 
     if (sparqlServiceUrl.getSelectedIndex() == 0
         || serviceUrl.length() == 0) {
       // Updating the local model
-      final GraphStore graphStore = GraphStoreFactory.create(ontModel);
-      UpdateAction.parseExecute(sparqlInput.getText(), graphStore);
+      long originalAssertionCount = 0;
+      long resultingAssertionCount = 0;
 
-      // Assume the update modified the model: update counts then invalidate the
-      // tree and inferences
+      final GraphStore graphStore = GraphStoreFactory.create(ontModel);
+      originalAssertionCount = ontModel.size();
+      UpdateAction.parseExecute(sparqlInput.getText(), graphStore);
+      resultingAssertionCount = ontModel.size();
+
+      message = "Local model update completed [Original Assertion Count:"
+          + originalAssertionCount + "  Resulting Assertion Count:"
+          + resultingAssertionCount + "]";
+
+      /*
+       * Assume the update modified the model: update counts then invalidate the
+       * tree and inferences
+       */
       showModelTripleCounts();
       isTreeInSyncWithModel = false;
       areInferencesInSyncWithModel = false;
@@ -4175,7 +4188,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       final SparqlQuery sparqlQuery = new SparqlQuery(sparqlInput.getText());
       final QueryInfo queryInfo = new QueryInfo(sparqlQuery,
           sparqlServiceUrl.getSelectedIndex() == 0 ? null : sparqlServiceUrl
-              .getSelectedItem().toString(), defaultGraphUri.getText(), null);
+              .getSelectedItem().toString(), defaultGraphUri.getText(),
+          tableModel);
       queryHistory.addQuery(queryInfo);
     } else {
       // Updating via a remote endpoint
@@ -4194,12 +4208,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
       processor.execute();
     }
+
+    return message;
   }
 
   /**
    * Handle a SPARQL query request, use the SPARQL engine and report the results
-   * 
-   * TODO Handle construct
    * 
    * @return The number of resulting rows
    */
@@ -4280,17 +4294,25 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       int numCreatedAssertions = 0;
       long numAddedAssertions = 0;
       if (model != null) {
+        tableModel.displayStatementsInTable(model.listStatements(), 1000,
+            "Constructed ");
         numCreatedAssertions = model.getGraph().size();
         numAddedAssertions = ontModel.size();
         ontModel.add(model);
         numAddedAssertions = ontModel.size() - numAddedAssertions;
+        if (numAddedAssertions != 0) {
+          // Assume the update modified the model: update counts then invalidate
+          // the
+          // tree and inferences
+          showModelTripleCounts();
+          isTreeInSyncWithModel = false;
+          areInferencesInSyncWithModel = false;
+        }
       }
       qe.close();
-      tableModel.displayMessageInTable(
-          "SPARQL Construct, No Results To Display",
-          new String[] {});
-      message = "SPARQL Construct Executed, Created Assertions:"
-          + numCreatedAssertions + " New Assertions:" + numAddedAssertions;
+      message = "SPARQL construct executed [Created Assertions:"
+          + numCreatedAssertions + "  New Assertions:" + numAddedAssertions
+          + "]";
     } else {
       // Not a construct - assume select
       resultSet = qe.execSelect();
@@ -4342,7 +4364,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     if (message == null) {
       message = "Number of query results: " + numResults;
     }
-    
+
     return message;
   }
 

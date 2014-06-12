@@ -11,6 +11,11 @@ import com.hp.hpl.jena.ontology.OntModel;
 import com.hp.hpl.jena.query.Query;
 import com.hp.hpl.jena.query.QuerySolution;
 import com.hp.hpl.jena.query.ResultSet;
+import com.hp.hpl.jena.rdf.model.Property;
+import com.hp.hpl.jena.rdf.model.RDFNode;
+import com.hp.hpl.jena.rdf.model.Resource;
+import com.hp.hpl.jena.rdf.model.Statement;
+import com.hp.hpl.jena.rdf.model.StmtIterator;
 
 /**
  * A basic table model for reporting the SPARQL results
@@ -108,6 +113,59 @@ public class SparqlTableModel extends AbstractTableModel {
     }
 
     fireTableStructureChanged();
+  }
+
+  /**
+   * Display a collection of statements
+   * 
+   * @param statements
+   *          The statement iterator containing the set of statements to render
+   * @param maximumStatementCount
+   *          The maximum number of statements to render in the table
+   * @param prefixOnColumnNames
+   *          Text to place in front of generated column headings (Subject,
+   *          Predicate, Object)
+   */
+  public void displayStatementsInTable(StmtIterator statements,
+      int maximumStatementCount, String prefixOnColumnNames) {
+    clearModel();
+
+    columnLabels.add((prefixOnColumnNames == null ? "" : prefixOnColumnNames)
+        + "Subject");
+    columnLabels.add((prefixOnColumnNames == null ? "" : prefixOnColumnNames)
+        + "Predicate");
+    columnLabels.add((prefixOnColumnNames == null ? "" : prefixOnColumnNames)
+        + "Object");
+
+    for (int numStatements = 0; statements.hasNext()
+        && numStatements < maximumStatementCount; ++numStatements) {
+      final Statement statement = statements.next();
+      final Resource subject = statement.getSubject();
+      final Property predicate = statement.getPredicate();
+      final RDFNode object = statement.getObject();
+
+      final List<SparqlResultItem> row = new ArrayList<SparqlResultItem>();
+
+      row.add(new SparqlResultItem(subject.getURI()));
+      row.add(new SparqlResultItem(predicate.getURI()));
+      if (object.isLiteral()) {
+        row.add(new SparqlResultItem(object.asLiteral().getString()));
+      } else {
+        row.add(new SparqlResultItem(object.asResource().getURI()));
+      }
+
+      rows.add(row);
+    }
+
+    if (statements.hasNext()) {
+      final List<SparqlResultItem> row = new ArrayList<SparqlResultItem>();
+      row.add(new SparqlResultItem("Maximum Rows Reached"));
+      row.add(new SparqlResultItem(""));
+      row.add(new SparqlResultItem(""));
+      rows.add(row);
+    }
+
+    fireTableDataChanged();
   }
 
   /**
