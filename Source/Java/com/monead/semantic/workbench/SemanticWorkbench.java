@@ -81,6 +81,8 @@ import javax.swing.WindowConstants;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -209,7 +211,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "1.9.8";
+  public static final String VERSION = "1.9.9";
 
   /**
    * Serial UID
@@ -577,7 +579,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * Toggle the selected SPARQL query lines between commented and not commented
    */
-  private JMenuItem editSparqlCommentToggle;
+  private JMenuItem editCommentToggle;
 
   /**
    * Expand all the nodes of the tree view of the model
@@ -593,6 +595,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Edit the list of stored SPARQL service URLs
    */
   private JMenuItem editEditListOfSparqlServiceUrls;
+
   /**
    * Generate list of inferred triples from the model
    */
@@ -2039,6 +2042,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     // SPARQL
     tabbedPane.add("SPARQL", setupSparqlPanel());
 
+    // Detect tab selections
+    tabbedPane.addChangeListener(new TabbedPaneChangeListener());
+
     // Add the tabbed pane to the main window
     panel.add(tabbedPane, BorderLayout.CENTER);
 
@@ -2615,18 +2621,18 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     menu.addSeparator();
 
-    editSparqlCommentToggle = new JMenuItem("Toggle Comment (SPARQL)");
-    editSparqlCommentToggle.setAccelerator(KeyStroke.getKeyStroke(
+    editCommentToggle = new JMenuItem("Toggle Comment");
+    editCommentToggle.setAccelerator(KeyStroke.getKeyStroke(
         KeyEvent.VK_T,
         KeyEvent.CTRL_MASK));
-    editSparqlCommentToggle.setMnemonic(KeyEvent.VK_T);
-    editSparqlCommentToggle
+    editCommentToggle.setMnemonic(KeyEvent.VK_T);
+    editCommentToggle
         .setToolTipText(
-        "Switch the chosen SPARQL query lines between commented and not commented");
-    editSparqlCommentToggle
-        .addActionListener(new SparqlCommentToggleListener());
-    editSparqlCommentToggle.setEnabled(false);
-    menu.add(editSparqlCommentToggle);
+        "Switch the chosen assertion or query lines between commented and not commented");
+    editCommentToggle
+        .addActionListener(new CommentToggleListener());
+    editCommentToggle.setEnabled(false);
+    menu.add(editCommentToggle);
 
     editInsertPrefixes = new JMenuItem("Insert Prefixes");
     editInsertPrefixes.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I,
@@ -3506,6 +3512,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     assertionsInput = new JTextArea(10, 50);
     assertionsInput.addKeyListener(new UserInputListener());
+    assertionsInput.addCaretListener(new TextAreaCaratListener());
 
     inferredTriples = new JTextArea(10, 50);
     inferredTriples.setEditable(false);
@@ -3513,7 +3520,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     // SPARQL Input
     sparqlInput = new JTextArea(10, 50);
     sparqlInput.addKeyListener(new UserInputListener());
-    sparqlInput.addCaretListener(new SparqlTextAreaCaratListener());
+    sparqlInput.addCaretListener(new TextAreaCaratListener());
 
     // User id and password for accessing secured SPARQL endpoints
     sparqlServiceUserId = new JTextField(10);
@@ -4289,7 +4296,21 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
     }
 
-    if (query.isConstructType()) {
+    if (query.isDescribeType()) {
+      final Model model = qe.execDescribe();
+      if (model != null) {
+        tableModel.displayStatementsInTable(model.listStatements(), 1000,
+            "Describe ");
+        message = "DESCRIBE executed, resulting model size: " + model.size();
+      } else {
+        message = "DESCRIBE executed, no model returned";
+      }
+
+    } else if (query.isAskType()) {
+      final boolean result = qe.execAsk();
+      message = "ASK executed, result: " + result;
+      tableModel.displayMessageInTable(message, new String[] {});
+    } else if (query.isConstructType()) {
       final Model model = qe.execConstruct();
       int numCreatedAssertions = 0;
       long numAddedAssertions = 0;
@@ -4309,8 +4330,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           areInferencesInSyncWithModel = false;
         }
       }
-      qe.close();
-      message = "SPARQL construct executed [Created Assertions:"
+      message = "CONSTRUCT executed [Created Assertions:"
           + numCreatedAssertions + "  New Assertions:" + numAddedAssertions
           + "]";
     } else {
@@ -6619,6 +6639,45 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
+   * Enable or disable the comment toggle menu item based on whether the
+   * selected tab supports comment toggling and has one or more lines selected.
+   */
+  private void enableCommentToggle() {
+    final int selectedTab = tabbedPane.getSelectedIndex();
+
+    if (selectedTab == TAB_NUMBER_SPARQL) {
+      editCommentToggle
+          .setEnabled(sparqlInput.getSelectionEnd() > sparqlInput
+              .getSelectionStart());
+    } else if (selectedTab == TAB_NUMBER_ASSERTIONS) {
+      editCommentToggle
+          .setEnabled(assertionsInput.getSelectionEnd() > assertionsInput
+              .getSelectionStart());
+    } else {
+      editCommentToggle
+          .setEnabled(false);
+    }
+  }
+
+  /**
+   * Toggle the comment character on/off for the chosen lines.
+   * 
+   * Currently this only supports using the pound sign (#) as the comment
+   * character which works for most assertions formats except RDF/XML as well as
+   * for SPARQL.
+   */
+  private void commentToggle() {
+    final int selectedTab = tabbedPane.getSelectedIndex();
+
+    if (selectedTab == TAB_NUMBER_SPARQL) {
+      GuiUtilities.commentToggle(sparqlInput, "#");
+    } else if (selectedTab == TAB_NUMBER_ASSERTIONS) {
+      GuiUtilities.commentToggle(assertionsInput, "#");
+    }
+
+  }
+
+  /**
    * Presents a classic "About" box to the user displaying the current version
    * of the application.
    */
@@ -7045,17 +7104,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Toggles selected lines in the SPARQL query between commented and not
    * commented
    */
-  private class SparqlCommentToggleListener implements ActionListener {
+  private class CommentToggleListener implements ActionListener {
     /**
      * No operation
      */
-    public SparqlCommentToggleListener() {
+    public CommentToggleListener() {
 
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
-      GuiUtilities.commentToggle(sparqlInput, "#");
+      commentToggle();
     }
   }
 
@@ -7464,21 +7523,36 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * has been selected in which case the comment toggle options needs to be
    * enabled.
    */
-  private class SparqlTextAreaCaratListener implements CaretListener {
+  private class TextAreaCaratListener implements CaretListener {
     /**
      * No operation
      */
-    public SparqlTextAreaCaratListener() {
+    public TextAreaCaratListener() {
 
     }
 
     @Override
     public void caretUpdate(CaretEvent arg0) {
-      editSparqlCommentToggle
-          .setEnabled(sparqlInput.getSelectionEnd() > sparqlInput
-              .getSelectionStart());
+      enableCommentToggle();
     }
 
+  }
+
+  /**
+   * Detect tab selections
+   */
+  private class TabbedPaneChangeListener implements ChangeListener {
+    /**
+     * No operation
+     */
+    public TabbedPaneChangeListener() {
+
+    }
+
+    @Override
+    public void stateChanged(ChangeEvent arg0) {
+      enableCommentToggle();
+    }
   }
 
   /**
