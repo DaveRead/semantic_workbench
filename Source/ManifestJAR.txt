@@ -1,4 +1,4 @@
 Manifest-Version: 1.0
 Main-Class: com.monead.semantic.workbench.SemanticWorkbench
 Sealed: true
-SplashScreen-Image: images/SWBicon.large.png
+SplashScreen-Image: images/SWBicon.large.Monead.png

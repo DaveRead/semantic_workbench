@@ -25,7 +25,7 @@
     	<property name="countEmpty" value="false"/>
     </module>
   	<module name="MethodCount">
-  	  	<property name="maxTotal" value="150"/>
+  	  	<property name="maxTotal" value="170"/>
   	  	<property name="maxPublic" value="30"/>
   	  	<property name="maxProtected" value="20"/>
   	  	<property name="maxPackage" value="20"/>

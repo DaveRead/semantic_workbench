@@ -211,7 +211,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "1.9.9";
+  public static final String VERSION = "1.9.10";
 
   /**
    * Serial UID
@@ -437,9 +437,20 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private FileSource rdfFileSource;
 
   /**
+   * Status of whether the ontology file has been saved since the last update
+   */
+  private boolean rdfFileSaved;
+
+  /**
    * The name (and path if necessary) to the SPARQL file being loaded
    */
   private File sparqlQueryFile;
+
+  /**
+   * Status of whether the SPARQL query file has been saved since the last
+   * update
+   */
+  private boolean sparqlQuerySaved;
 
   /**
    * The processed ontology
@@ -958,6 +969,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     pack();
     sizing();
     setStatus("");
+    rdfFileSaved = true;
+    sparqlQuerySaved = true;
     setVisible(true);
 
     checkForNewVersion();
@@ -4428,6 +4441,20 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   public void setRdfFileSource(FileSource pRdfFileSource) {
     rdfFileSource = pRdfFileSource;
+    rdfFileSaved = true;
+    setTitle();
+  }
+
+  /**
+   * Set the SPARQL query file
+   * 
+   * @param pSparqlQueryFile
+   *          The FileSource of the SPARQL query
+   */
+  public void setSparqlQueryFile(File pSparqlQueryFile) {
+    sparqlQueryFile = pSparqlQueryFile;
+    sparqlQuerySaved = true;
+    addRecentSparqlFile(pSparqlQueryFile);
     setTitle();
   }
 
@@ -4445,10 +4472,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     if (rdfFileSource != null) {
       title += " - " + rdfFileSource.getName();
+      if (!rdfFileSaved) {
+        title += "*";
+      }
     }
 
     if (sparqlQueryFile != null) {
-      title += " (" + sparqlQueryFile.getName() + ")";
+      title += " (" + sparqlQueryFile.getName();
+      if (!sparqlQuerySaved) {
+        title += "*";
+      }
+      title += ")";
     }
     setTitle(title);
   }
@@ -5693,6 +5727,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     String serviceUrlFromFile = null;
     String defaultGraphUriFromFile = null;
 
+    checkForUnsavedSparqlQuery();
+
     lastDirectoryUsed = inputFile.getParentFile();
 
     reader = null;
@@ -5744,8 +5780,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       }
 
       setStatus("Loaded SPARQL query file: " + inputFile.getName());
-      sparqlQueryFile = inputFile;
-      addRecentSparqlFile(inputFile);
+      setSparqlQueryFile(inputFile);
+      // sparqlQueryFile = inputFile;
+      // addRecentSparqlFile(inputFile);
 
       // Select the SPARQL tab
       SwingUtilities.invokeLater(new Runnable() {
@@ -5939,8 +5976,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
               + "\n");
         }
         out.write(sparqlInput.getText());
-        sparqlQueryFile = destinationFile;
-        addRecentSparqlFile(destinationFile);
+        setSparqlQueryFile(destinationFile);
+        // sparqlQueryFile = destinationFile;
+        // addRecentSparqlFile(destinationFile);
       } catch (IOException ioExc) {
         final String errorMessage = "Unable to write to file: "
             + destinationFile;
@@ -6185,11 +6223,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    *          The file source of the assertions
    */
   private void setupToLoadOntologyFile(FileSource inputFileSource) {
+
     if (inputFileSource.isFile() && !inputFileSource.getBackingFile().isFile()) {
       JOptionPane.showMessageDialog(this,
           "Cannot read the file\n" + inputFileSource.getAbsolutePath(),
           "Cannot Read Assertions File", JOptionPane.ERROR_MESSAGE);
     } else {
+      checkForUnsavedRdf();
       setRdfFileSource(inputFileSource);
       runModelLoad();
     }
@@ -6635,6 +6675,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       setStatus("Historical query retrieved.");
     }
 
+    sparqlQuerySaved = true;
     enableControls(true);
   }
 
@@ -6674,7 +6715,58 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     } else if (selectedTab == TAB_NUMBER_ASSERTIONS) {
       GuiUtilities.commentToggle(assertionsInput, "#");
     }
+  }
 
+  /**
+   * Check for unsaved changes to information
+   */
+  private void checkForUnsavedInformation() {
+    checkForUnsavedRdf();
+    checkForUnsavedSparqlQuery();
+  }
+
+  /**
+   * Check for unsaved changes to the assertions. If there are unsaved changes,
+   * verify with the user whether to save them.
+   */
+  private void checkForUnsavedRdf() {
+    // if ((rdfFileSource != null && !rdfFileSaved)
+    // || (rdfFileSource == null && assertionsInput.getText().trim().length() >
+    // 0)) {
+    if (!rdfFileSaved && assertionsInput.getText().trim().length() > 0) {
+      if (checkWhetherToSaveFile("Assertion Data")) {
+        saveAssertionsToFile();
+      }
+    }
+  }
+
+  /**
+   * Check for unsaved changes to the SPARQL query. If there are unsaved
+   * changes, verify with the user whether to save them.
+   */
+  private void checkForUnsavedSparqlQuery() {
+    // if (sparqlQueryFile != null && !sparqlQuerySaved) {
+    if (!sparqlQuerySaved && sparqlInput.getText().trim().length() > 0) {
+      if (checkWhetherToSaveFile("SPARQL Query")) {
+        saveSparqlQueryToFile();
+      }
+    }
+  }
+
+  /**
+   * Ask the user whether to save unsaved information to a file.
+   * 
+   * @param description
+   *          The description of the information to be saved. It should be
+   *          written in the singular.
+   * 
+   * @return True if the user wants to save the information to a file
+   */
+  private boolean checkWhetherToSaveFile(String description) {
+    return JOptionPane.showConfirmDialog(this,
+        "The " + description + " has not been saved.\n\n"
+            + "Do you want to save it?", "Unsaved Changes: " + description,
+        JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION;
   }
 
   /**
@@ -6738,6 +6830,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * End the application
    */
   private void closeApplication() {
+    checkForUnsavedInformation();
     saveProperties();
     queryHistory.saveHistory(new File(getUserHomeDirectory(),
         SPARQL_QUERY_HISTORY_FILE_NAME));
@@ -7585,15 +7678,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
      *          The key event received
      */
     public void keyPressed(KeyEvent arg0) {
-      if (arg0.getSource() == assertionsInput && ontModel != null) {
+      if (arg0.getSource() == assertionsInput) {
         lastAssertions = assertionsInput.getText();
       }
 
       if (arg0.getSource() == sparqlInput) {
-        if (sparqlResultsTable.getModel() instanceof SparqlTableModel
-            && !((SparqlTableModel) sparqlResultsTable.getModel()).isEmpty()) {
-          lastSparql = sparqlInput.getText();
-        }
+        lastSparql = sparqlInput.getText();
       }
     }
 
@@ -7606,17 +7696,28 @@ public class SemanticWorkbench extends JFrame implements Runnable,
      */
     public void keyReleased(KeyEvent arg0) {
       if (arg0.getSource() == assertionsInput) {
-        if (ontModel != null
-            && !lastAssertions.equals(assertionsInput.getText())) {
-          invalidateModel(true);
+        if (!lastAssertions.equals(assertionsInput.getText())) {
+          if (ontModel != null) {
+            invalidateModel(true);
+          }
+          if (rdfFileSaved) {
+            rdfFileSaved = false;
+            setTitle();
+          }
         }
         enableAssertionsHandling(true);
       } else if (arg0.getSource() == sparqlInput) {
-        if (sparqlResultsTable.getModel() instanceof SparqlTableModel
-            && !((SparqlTableModel) sparqlResultsTable.getModel())
-                .isEmpty()
-            && !lastSparql.equals(sparqlInput.getText())) {
-          invalidateSparqlResults(true);
+        if (!lastSparql.equals(sparqlInput.getText())) {
+          if (sparqlResultsTable.getModel() instanceof SparqlTableModel
+              && !((SparqlTableModel) sparqlResultsTable.getModel())
+                  .isEmpty()
+              && !lastSparql.equals(sparqlInput.getText())) {
+            invalidateSparqlResults(true);
+          }
+          if (sparqlQuerySaved) {
+            sparqlQuerySaved = false;
+            setTitle();
+          }
         }
       }
     }
