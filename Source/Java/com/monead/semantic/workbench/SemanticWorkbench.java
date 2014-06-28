@@ -10,7 +10,6 @@ import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Rectangle;
-import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
@@ -83,6 +82,7 @@ import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.filechooser.FileFilter;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -141,12 +141,14 @@ import com.monead.semantic.workbench.tree.WrapperInstance;
 import com.monead.semantic.workbench.tree.WrapperLiteral;
 import com.monead.semantic.workbench.tree.WrapperObjectProperty;
 import com.monead.semantic.workbench.utilities.CheckLatestVersion;
+import com.monead.semantic.workbench.utilities.FileFilterDefinition;
 import com.monead.semantic.workbench.utilities.FileSource;
 import com.monead.semantic.workbench.utilities.FontChooser;
 import com.monead.semantic.workbench.utilities.GuiUtilities;
 import com.monead.semantic.workbench.utilities.MemoryWarningSystem;
 import com.monead.semantic.workbench.utilities.NewVersionInformation;
 import com.monead.semantic.workbench.utilities.ReasonerSelection;
+import com.monead.semantic.workbench.utilities.SuffixFileFilter;
 import com.monead.semantic.workbench.utilities.TextProcessing;
 import com.monead.semantic.workbench.utilities.TextSearch;
 import com.monead.semantic.workbench.utilities.ValueFormatter;
@@ -211,7 +213,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "1.9.10";
+  public static final String VERSION = "1.9.11";
 
   /**
    * Serial UID
@@ -287,11 +289,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Minimum allowed font size
    */
   private static final int MINIMUM_FONT_SIZE = 5;
-
-  /**
-   * Fraction of screen size the restored window dimension may occupy
-   */
-  private static final double MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE = 0.9;
 
   /**
    * Prefix of the comment in the saved SPARQL query to indicate the default
@@ -442,6 +439,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private boolean rdfFileSaved;
 
   /**
+   * The RDF file filter description last used by the user
+   */
+  private String latestChosenRdfFileFilterDescription;
+
+  /**
    * The name (and path if necessary) to the SPARQL file being loaded
    */
   private File sparqlQueryFile;
@@ -451,6 +453,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * update
    */
   private boolean sparqlQuerySaved;
+
+  /**
+   * The SPARQL file filter description last used by the user
+   */
+  private String latestChosenSparqlFileFilterDescription;
 
   /**
    * The processed ontology
@@ -967,7 +974,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     enableControls(true);
     pack();
-    sizing();
+    GuiUtilities
+        .windowSizing(this,
+            properties.getProperty(ConfigurationProperty.LAST_HEIGHT.key()),
+            properties.getProperty(ConfigurationProperty.LAST_WIDTH.key()),
+            properties.getProperty(ConfigurationProperty.LAST_TOP_X_POSITION
+                .key()),
+            properties.getProperty(ConfigurationProperty.LAST_TOP_Y_POSITION
+                .key()));
     setStatus("");
     rdfFileSaved = true;
     sparqlQuerySaved = true;
@@ -1002,71 +1016,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       setIconImages(icons);
     } catch (Throwable throwable) {
       LOGGER.warn("Cannot find application icons in the image library");
-    }
-  }
-
-  /**
-   * Open the window at its last location and last dimenstions. If the window
-   * will not fit on screen then assume that the screen dimensions
-   * have change and move to upper left of 0, 0 and set width and height
-   * to previous dimensions if they fit or reduce to 90% of screen dim.
-   * 
-   * If there is no window position or size information then simply assure that
-   * the default window size is no more than 90% of screen height and width.
-   */
-  private void sizing() {
-    boolean resizeRequired = false;
-    boolean usePrevious = false;
-    int previousHeight = 0;
-    int previousWidth = 0;
-    int previousTopX = 0;
-    int previousTopY = 0;
-    double setHeight = this.getSize().getHeight();
-    double setWidth = this.getSize().getWidth();
-    final double screenHeight = Toolkit.getDefaultToolkit().getScreenSize()
-        .getHeight();
-    final double screenWidth = Toolkit.getDefaultToolkit().getScreenSize()
-        .getWidth();
-
-    try {
-      previousHeight = Integer.parseInt(properties.getProperty(
-          ConfigurationProperty.LAST_HEIGHT.key(), setHeight + ""));
-      previousWidth = Integer.parseInt(properties.getProperty(
-          ConfigurationProperty.LAST_WIDTH.key(),
-          setWidth + ""));
-      previousTopX = Integer.parseInt(properties.getProperty(
-          ConfigurationProperty.LAST_TOP_X_POSITION.key(), "0"));
-      previousTopY = Integer.parseInt(properties.getProperty(
-          ConfigurationProperty.LAST_TOP_Y_POSITION.key(), "0"));
-      if (previousHeight > 0 && previousWidth > 0 && previousTopX >= 0
-          && previousTopY >= 0) {
-        usePrevious = true;
-      }
-    } catch (Throwable throwable) {
-      LOGGER.warn("Illegal window position or size property value, ignoring",
-          throwable);
-    }
-
-    if (usePrevious && previousTopX + previousWidth < screenWidth
-        && previousTopY + previousHeight < screenHeight) {
-      this.setLocation(previousTopX, previousTopY);
-      setWidth = previousWidth;
-      setHeight = previousHeight;
-      resizeRequired = true;
-    } else {
-      if (screenHeight * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setHeight) {
-        setHeight = screenHeight
-            * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE;
-        resizeRequired = true;
-      }
-      if (screenWidth * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setWidth) {
-        setWidth = screenWidth * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE;
-        resizeRequired = true;
-      }
-    }
-
-    if (resizeRequired) {
-      this.setSize((int) setWidth, (int) setHeight);
     }
   }
 
@@ -4336,8 +4285,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         numAddedAssertions = ontModel.size() - numAddedAssertions;
         if (numAddedAssertions != 0) {
           // Assume the update modified the model: update counts then invalidate
-          // the
-          // tree and inferences
+          // the tree and inferences
           showModelTripleCounts();
           isTreeInSyncWithModel = false;
           areInferencesInSyncWithModel = false;
@@ -5177,8 +5125,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
-   * Handle left-mouse click on ontology model tree. Initial use will be to jump
-   * to a matching individual in the tree
+   * Handle left-mouse click on ontology model tree.
+   * 
+   * If the selected node is an individual, the tree will be searched forward
+   * (down) to jump to the next matching individual in the tree
+   * 
+   * Otherwise, no action will be taken in response to the left mouse click in
+   * the tree.
    * 
    * @param event
    *          The mouse click event
@@ -5301,9 +5254,16 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
-   * Handle right-mouse click on ontology model tree. Initial use will be to add
-   * a class or property to the list of suppressed classes and properties so
-   * that it won't show up in the tree.
+   * Handle right-mouse click on ontology model tree.
+   * 
+   * If the selected node is a class or property it will be added to the list of
+   * suppressed classes and properties so that it won't show up in the tree.
+   * 
+   * If the selected node is an individual, the tree will be searched backward
+   * (up) to jump to the previous matching individual in the tree
+   * 
+   * Otherwise, no action will be taken in response to the right mouse click in
+   * the tree.
    * 
    * @param event
    *          The mouse click event
@@ -5389,6 +5349,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void openOntologyFile() {
     JFileChooser fileChooser;
+    FileFilter defaultFileFilter = null;
+    FileFilter preferredFileFilter = null;
     File chosenFile;
 
     if (lastDirectoryUsed == null) {
@@ -5397,8 +5359,41 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     fileChooser = new JFileChooser(lastDirectoryUsed);
 
+    for (FileFilterDefinition filterDefinition : FileFilterDefinition.values()) {
+      if (filterDefinition.name().startsWith("ONTOLOGY")) {
+        final FileFilter fileFilter = new SuffixFileFilter(
+            filterDefinition.description(), filterDefinition.acceptedSuffixes());
+        if (filterDefinition.isPreferredOption()) {
+          preferredFileFilter = fileFilter;
+        }
+        fileChooser.addChoosableFileFilter(fileFilter);
+        if (filterDefinition.description().equals(
+            latestChosenRdfFileFilterDescription)) {
+          defaultFileFilter = fileFilter;
+        }
+      }
+    }
+
+    if (defaultFileFilter != null) {
+      fileChooser.setFileFilter(defaultFileFilter);
+    } else if (latestChosenRdfFileFilterDescription != null
+        && latestChosenRdfFileFilterDescription.startsWith("All")) {
+      fileChooser.setFileFilter(fileChooser.getAcceptAllFileFilter());
+    } else if (preferredFileFilter != null) {
+      fileChooser.setFileFilter(preferredFileFilter);
+    }
+
     fileChooser.setDialogTitle("Open Assertions File");
     fileChooser.showOpenDialog(this);
+
+    try {
+      latestChosenRdfFileFilterDescription = fileChooser.getFileFilter()
+          .getDescription();
+    } catch (Throwable throwable) {
+      LOGGER.warn("Unable to determine which ontology file filter was chosen",
+          throwable);
+    }
+
     chosenFile = fileChooser.getSelectedFile();
 
     if (chosenFile != null) {
@@ -5445,6 +5440,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void openSparqlQueryFile() {
     JFileChooser fileChooser;
+    FileFilter defaultFileFilter = null;
+    FileFilter preferredFileFilter = null;
     File chosenFile;
 
     if (lastDirectoryUsed == null) {
@@ -5453,8 +5450,41 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     fileChooser = new JFileChooser(lastDirectoryUsed);
 
+    for (FileFilterDefinition filterDefinition : FileFilterDefinition.values()) {
+      if (filterDefinition.name().startsWith("SPARQL")) {
+        final FileFilter fileFilter = new SuffixFileFilter(
+            filterDefinition.description(), filterDefinition.acceptedSuffixes());
+        if (filterDefinition.isPreferredOption()) {
+          preferredFileFilter = fileFilter;
+        }
+        fileChooser.addChoosableFileFilter(fileFilter);
+        if (filterDefinition.description().equals(
+            latestChosenSparqlFileFilterDescription)) {
+          defaultFileFilter = fileFilter;
+        }
+      }
+    }
+
+    if (defaultFileFilter != null) {
+      fileChooser.setFileFilter(defaultFileFilter);
+    } else if (latestChosenSparqlFileFilterDescription != null
+        && latestChosenSparqlFileFilterDescription.startsWith("All")) {
+      fileChooser.setFileFilter(fileChooser.getAcceptAllFileFilter());
+    } else if (preferredFileFilter != null) {
+      fileChooser.setFileFilter(preferredFileFilter);
+    }
+
     fileChooser.setDialogTitle("Open SPARQL Query File");
     fileChooser.showOpenDialog(this);
+
+    try {
+      latestChosenSparqlFileFilterDescription = fileChooser.getFileFilter()
+          .getDescription();
+    } catch (Throwable throwable) {
+      LOGGER.warn("Unable to determine which SPARQL file filter was chosen",
+          throwable);
+    }
+
     chosenFile = fileChooser.getSelectedFile();
 
     if (chosenFile != null) {
@@ -5781,8 +5811,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
       setStatus("Loaded SPARQL query file: " + inputFile.getName());
       setSparqlQueryFile(inputFile);
-      // sparqlQueryFile = inputFile;
-      // addRecentSparqlFile(inputFile);
 
       // Select the SPARQL tab
       SwingUtilities.invokeLater(new Runnable() {
@@ -5977,8 +6005,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         }
         out.write(sparqlInput.getText());
         setSparqlQueryFile(destinationFile);
-        // sparqlQueryFile = destinationFile;
-        // addRecentSparqlFile(destinationFile);
       } catch (IOException ioExc) {
         final String errorMessage = "Unable to write to file: "
             + destinationFile;
@@ -6730,9 +6756,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * verify with the user whether to save them.
    */
   private void checkForUnsavedRdf() {
-    // if ((rdfFileSource != null && !rdfFileSaved)
-    // || (rdfFileSource == null && assertionsInput.getText().trim().length() >
-    // 0)) {
     if (!rdfFileSaved && assertionsInput.getText().trim().length() > 0) {
       if (checkWhetherToSaveFile("Assertion Data")) {
         saveAssertionsToFile();
@@ -6745,7 +6768,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * changes, verify with the user whether to save them.
    */
   private void checkForUnsavedSparqlQuery() {
-    // if (sparqlQueryFile != null && !sparqlQuerySaved) {
     if (!sparqlQuerySaved && sparqlInput.getText().trim().length() > 0) {
       if (checkWhetherToSaveFile("SPARQL Query")) {
         saveSparqlQueryToFile();

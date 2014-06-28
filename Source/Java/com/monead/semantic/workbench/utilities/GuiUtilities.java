@@ -13,6 +13,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextArea;
 
 import org.apache.log4j.Logger;
+
 import javax.swing.table.TableColumn;
 import javax.swing.JTable;
 import javax.swing.table.TableModel;
@@ -49,6 +50,11 @@ public class GuiUtilities {
    * Logger Instance
    */
   private static final Logger LOGGER = Logger.getLogger(GuiUtilities.class);
+
+  /**
+   * Fraction of screen size the restored window dimension may occupy
+   */
+  private static final double MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE = 0.9;
 
   /**
    * Private since no one should create instances of this class.
@@ -388,6 +394,73 @@ public class GuiUtilities {
       jTextArea.setText(updatedText.toString());
       jTextArea.setCaretPosition(caratPosition);
       jTextArea.scrollRectToVisible(visible);
+    }
+  }
+
+  /**
+   * Open the window at its last location and last dimensions. If the window
+   * will not fit on screen then assume that the screen dimensions
+   * have change and move to upper left of 0, 0 and set width and height
+   * to previous dimensions if they fit or reduce to 90% of screen dim.
+   * 
+   * If there is no window position or size information then simply assure that
+   * the default window size is no more than 90% of screen height and width.
+   * 
+   * @param window The window to be adjusted
+   * @param lastHeight The last height of the window
+   * @param lastWidth The last width of the window
+   * @param lastTopX The last top X position of the window
+   * @param lastTopY The last top Y position of the window
+   */
+  public static void windowSizing(Window window, String lastHeight,
+      String lastWidth, String lastTopX, String lastTopY) {
+    boolean resizeRequired = false;
+    boolean usePrevious = false;
+    int previousHeight = 0;
+    int previousWidth = 0;
+    int previousTopX = 0;
+    int previousTopY = 0;
+    double setHeight = window.getSize().getHeight();
+    double setWidth = window.getSize().getWidth();
+    final double screenHeight = Toolkit.getDefaultToolkit().getScreenSize()
+        .getHeight();
+    final double screenWidth = Toolkit.getDefaultToolkit().getScreenSize()
+        .getWidth();
+
+    try {
+      previousHeight = Integer.parseInt(lastHeight);
+      previousWidth = Integer.parseInt(lastWidth);
+      previousTopX = Integer.parseInt(lastTopX);
+      previousTopY = Integer.parseInt(lastTopY);
+      if (previousHeight > 0 && previousWidth > 0 && previousTopX >= 0
+          && previousTopY >= 0) {
+        usePrevious = true;
+      }
+    } catch (Throwable throwable) {
+      LOGGER.warn("Illegal window position or size property value, ignoring",
+          throwable);
+    }
+
+    if (usePrevious && previousTopX + previousWidth < screenWidth
+        && previousTopY + previousHeight < screenHeight) {
+      window.setLocation(previousTopX, previousTopY);
+      setWidth = previousWidth;
+      setHeight = previousHeight;
+      resizeRequired = true;
+    } else {
+      if (screenHeight * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setHeight) {
+        setHeight = screenHeight
+            * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE;
+        resizeRequired = true;
+      }
+      if (screenWidth * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setWidth) {
+        setWidth = screenWidth * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE;
+        resizeRequired = true;
+      }
+    }
+
+    if (resizeRequired) {
+      window.setSize((int) setWidth, (int) setHeight);
     }
   }
 }
