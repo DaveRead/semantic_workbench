@@ -213,7 +213,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "1.9.11";
+  public static final String VERSION = "01.09.12";
 
   /**
    * Serial UID
@@ -3509,8 +3509,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     sparqlInput.setText("select ?s ?p ?o where { ?s ?p ?o } limit 100");
 
     // Results table
-    // sparqlResultsTable = new JTable(new SparqlTableModel());
+    //sparqlResultsTable = new JTable(new SparqlTableModel());
     sparqlResultsTable = new JTable();
+
+    // TODO Allow configuration to switch auto-resizing on/off (e.g. horizontal
+    // scrolling)
+    sparqlResultsTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+
     sparqlResultsTable.setAutoCreateRowSorter(true);
 
     // Determine whether alternate tree icons exist
@@ -4330,7 +4335,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     renderer.setFont(sparqlResultsTable.getFont());
     sparqlResultsTable.setDefaultRenderer(SparqlResultItem.class, renderer);
     sparqlResultsTable.setModel(tableModel);
+
     numResults = tableModel.getRowCount();
+
+    if (numResults > 0) {
+      // TODO Allow configuration to switch auto-resizing on/off (e.g.
+      // horizontal scrolling)
+      GuiUtilities.initColumnSizes(sparqlResultsTable, tableModel);
+    }
 
     // Important - free up resources used running the query
     qe.close();
@@ -5954,6 +5966,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private void saveSparqlQueryToFile() {
     FileWriter out;
     JFileChooser fileChooser;
+    FileFilter defaultFileFilter = null;
+    FileFilter preferredFileFilter = null;
     File destinationFile;
     int choice;
 
@@ -5965,6 +5979,30 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     fileChooser = new JFileChooser();
 
+    for (FileFilterDefinition filterDefinition : FileFilterDefinition.values()) {
+      if (filterDefinition.name().startsWith("SPARQL")) {
+        final FileFilter fileFilter = new SuffixFileFilter(
+            filterDefinition.description(), filterDefinition.acceptedSuffixes());
+        if (filterDefinition.isPreferredOption()) {
+          preferredFileFilter = fileFilter;
+        }
+        fileChooser.addChoosableFileFilter(fileFilter);
+        if (filterDefinition.description().equals(
+            latestChosenSparqlFileFilterDescription)) {
+          defaultFileFilter = fileFilter;
+        }
+      }
+    }
+
+    if (defaultFileFilter != null) {
+      fileChooser.setFileFilter(defaultFileFilter);
+    } else if (latestChosenSparqlFileFilterDescription != null
+        && latestChosenSparqlFileFilterDescription.startsWith("All")) {
+      fileChooser.setFileFilter(fileChooser.getAcceptAllFileFilter());
+    } else if (preferredFileFilter != null) {
+      fileChooser.setFileFilter(preferredFileFilter);
+    }
+
     if (sparqlQueryFile != null) {
       fileChooser.setSelectedFile(sparqlQueryFile);
     } else {
@@ -5973,6 +6011,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     fileChooser.setDialogTitle("Save SPARQL Query to File");
     choice = fileChooser.showSaveDialog(this);
+
+    try {
+      latestChosenSparqlFileFilterDescription = fileChooser.getFileFilter()
+          .getDescription();
+    } catch (Throwable throwable) {
+      LOGGER.warn("Unable to determine which SPARQL file filter was chosen",
+          throwable);
+    }
+
     destinationFile = fileChooser.getSelectedFile();
 
     // Did not click save, did not select a file or chose a directory
@@ -5980,6 +6027,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     if (choice != JFileChooser.APPROVE_OPTION || destinationFile == null
         || (destinationFile.exists() && !destinationFile.isFile())) {
       return; // EARLY EXIT!
+    }
+
+    // Adjust file suffix if necessary
+    final FileFilter fileFilter = fileChooser.getFileFilter();
+    if (fileFilter != null && fileFilter instanceof SuffixFileFilter
+        && !fileChooser.getFileFilter().accept(destinationFile)) {
+      destinationFile = ((SuffixFileFilter) fileFilter)
+          .makeWithPrimarySuffix(destinationFile);
     }
 
     if (okToOverwriteFile(destinationFile)) {
@@ -6796,36 +6851,39 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * of the application.
    */
   private void about() {
-    StringBuffer message;
-    message = new StringBuffer();
+    String slMessage;
 
-    message.append("Semantic Workbench\n\nVersion: ");
-    message.append(VERSION);
-    message.append("\n\nDavid Read\n");
-    message.append("http://monead.com/\n\n");
-    message.append("Jena Version: ");
-    message.append(getJenaVersion());
-    message.append("\n");
-    message.append("Pellet Version: ");
-    message.append(getPelletVersion());
-    message.append("\n\n");
-    message.append("System information:\n");
-    message.append("  Free Memory: ");
-    message.append(INTEGER_COMMA_FORMAT.format(Runtime.getRuntime()
-        .freeMemory()));
-    message.append("\n");
-    message.append("  Total Memory: ");
-    message.append(INTEGER_COMMA_FORMAT.format(Runtime.getRuntime()
-        .totalMemory()));
-    message.append("\n");
-    message.append("  Maximum Memory: ");
-    message.append(INTEGER_COMMA_FORMAT
-        .format(Runtime.getRuntime().maxMemory()));
-    message.append("\n");
-    message.append("  Available Processors: ");
-    message.append(Runtime.getRuntime().availableProcessors());
+    slMessage = "Semantic Workbench\n\nVersion: " + VERSION
+        + "\nJena Version: " + getJenaVersion() + "\nPellet Version: "
+        + getPelletVersion() + "\n\nSystem information:\n  Free Memory: "
+        + INTEGER_COMMA_FORMAT.format(Runtime.getRuntime().freeMemory())
+        + "\n  Total Memory: "
+        + INTEGER_COMMA_FORMAT.format(Runtime.getRuntime().totalMemory())
+        + "\n  Maximum Memory: "
+        + INTEGER_COMMA_FORMAT.format(Runtime.getRuntime().maxMemory())
+        + "\n  Available Processors: "
+        + Runtime.getRuntime().availableProcessors()
+        + "\n\n";
 
-    JOptionPane.showMessageDialog(this, message.toString(),
+    slMessage += "Graphical user interface for working with semantic "
+        + "technology concepts including ontologies, reasoners and queries.\n\n";
+
+    slMessage += "David Read, www.monead.com\n\n";
+
+    slMessage += "Copyright (c) 2010-2014\n\n"
+        + "This program is free software: you can redistribute it and/or modify "
+        + "it under the terms of the GNU Affero General Public License as "
+        + "published by the Free Software Foundation, either version 3 of the "
+        + "License, or (at your option) any later version.\n\n"
+        + "This program is distributed in the hope that it will be useful, "
+        + "but WITHOUT ANY WARRANTY; without even the implied warranty of "
+        + "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the "
+        + "GNU Affero General Public License for more details.\n\n"
+        + "You should have received a copy of the GNU Affero General Public License "
+        + "along with this program.  If not, see <http://www.gnu.org/licenses/>.";
+
+    JOptionPane.showMessageDialog(this,
+        TextProcessing.characterInsert(slMessage, "\n", 70, 90, " ."),
         "About Semantic Workbench", JOptionPane.INFORMATION_MESSAGE);
   }
 

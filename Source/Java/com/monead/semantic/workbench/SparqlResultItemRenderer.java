@@ -153,7 +153,10 @@ public class SparqlResultItemRenderer extends JTextArea implements
               + getRowHeight() + ", " + getRows());
         }
 
-        setSize(new Dimension(cWidth, 1));
+        if (getLineWrap()) {
+          setSize(new Dimension(cWidth, 1));
+        }
+
         if (getPreferredSize().height > highestColumnForThisRow) {
           if (!firstDimValue) {
             highestCol.put(row, getPreferredSize().height);
@@ -172,7 +175,11 @@ public class SparqlResultItemRenderer extends JTextArea implements
       final int cWidth = table.getTableHeader().getColumnModel()
           .getColumn(column)
           .getWidth();
-      setSize(new Dimension(cWidth, 1));
+
+      if (getLineWrap()) {
+        setSize(new Dimension(cWidth, 1));
+      }
+
       if (getPreferredSize().height > highestColumnForThisRow) {
         if (!firstDimValue) {
           LOGGER.trace("Store row " + row + " height");
@@ -192,7 +199,8 @@ public class SparqlResultItemRenderer extends JTextArea implements
   /**
    * Paint the component - overridden in order to support images
    * 
-   * @param g The graphics object
+   * @param g
+   *          The graphics object
    */
   public void paintComponent(Graphics g) {
     if (myImageIcon != null) {

@@ -66,11 +66,38 @@ public enum FileFilterDefinition {
    */
   FileFilterDefinition(String pDescription, String[] pAcceptedSuffixes,
       boolean pIsPreferredOption) {
-    description = pDescription;
+    description = formatDescription(pDescription, pAcceptedSuffixes);
     acceptedSuffixes = pAcceptedSuffixes;
     isPreferredOption = pIsPreferredOption;
   }
 
+  /**
+   * Format the description to include a list of suffixes
+   * 
+   * @param pDescription
+   *          The description
+   * @param suffixes
+   *          The file name suffixes this filter accepts
+   *          
+   * @return The description including suffixes
+   */
+  private String formatDescription(String pDescription, String[] suffixes) {
+    String formatted = pDescription;
+
+    if (suffixes != null && suffixes.length > 0) {
+      formatted += " (";
+      for (int index = 0; index < suffixes.length; ++index) {
+        if (index > 0) {
+          formatted = formatted + ", ";
+        }
+        formatted += suffixes[index];
+      }
+      formatted += ")";
+    }
+
+    return formatted;
+  }
+  
   /**
    * Get the description for the file filter
    * 

@@ -66,6 +66,29 @@ public class SuffixFileFilter extends FileFilter {
     }
   }
 
+  /**
+   * Check whether the supplied file's name agrees with this suffix file filter.
+   * If not (e.g. the suffix is not a match) then append the first suffix in the
+   * list for this filter to the filename and return it. Otherwise return the
+   * original file name.
+   * 
+   * @param file
+   *          The file whose name is to be check against this filter
+   * 
+   * @return The file name adjust ed match this suffix filter if necessary
+   */
+  public File makeWithPrimarySuffix(File file) {
+    if (!accept(file)) {
+      String primarySuffix = acceptedSuffixes[0];
+      if (!primarySuffix.startsWith(".")) {
+        primarySuffix = "." + primarySuffix;
+      }
+      return new File(file.getAbsolutePath() + primarySuffix);
+    } else {
+      return file;
+    }
+  }
+
   @Override
   public boolean accept(File file) {
     if (file.isDirectory()) {

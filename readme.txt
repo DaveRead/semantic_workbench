@@ -1,5 +1,3 @@
-(Description updated for Version 1.8.1 on 20140213)
-
 Load, Infer, Query and Export Semantic Models
 =============================================
 This program allows the user to manually enter, or load from a file, semantic 
