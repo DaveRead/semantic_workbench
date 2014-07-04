@@ -213,7 +213,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "01.09.12";
+  public static final String VERSION = "01.09.14";
 
   /**
    * Serial UID
@@ -412,6 +412,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * File name for the history of SPARQL queries
    */
   private static final String SPARQL_QUERY_HISTORY_FILE_NAME = "SWB.SparqlQueryHistory.ser";
+
+  /**
+   * URL to overview video
+   */
+  private static final String OVERVIEW_VIDEO_LOCATION = "http://monead.com/semantic/semantic_workbench/8MinutesWithSemanticWorkbench/";
 
   /**
    * Configuration properties
@@ -769,6 +774,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * View the about dialog
    */
   private JMenuItem helpAbout;
+  
+  /**
+   * View the overview video
+   */
+  private JMenuItem helpOverviewVideo;
 
   /**
    * Allows selection of the reasoning level
@@ -2955,10 +2965,19 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     menu.setToolTipText(
         "Menu items related to user assistance");
 
-    helpAbout = new JMenuItem("About");
-    helpAbout.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H,
+    helpOverviewVideo = new JMenuItem("8 Minute Overview Video");
+    helpOverviewVideo.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V,
         ActionEvent.ALT_MASK));
-    helpAbout.setMnemonic(KeyEvent.VK_H);
+    helpOverviewVideo.setMnemonic(KeyEvent.VK_V);
+    helpOverviewVideo.setToolTipText(
+        "View an 8 minute overview of Semantic Workbench");
+    helpOverviewVideo.addActionListener(new OverviewVideoListener());
+    menu.add(helpOverviewVideo);
+
+    helpAbout = new JMenuItem("About");
+    helpAbout.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A,
+        ActionEvent.ALT_MASK));
+    helpAbout.setMnemonic(KeyEvent.VK_A);
     helpAbout.setToolTipText(
         "View version information");
     helpAbout.addActionListener(new AboutListener());
@@ -3509,7 +3528,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     sparqlInput.setText("select ?s ?p ?o where { ?s ?p ?o } limit 100");
 
     // Results table
-    //sparqlResultsTable = new JTable(new SparqlTableModel());
+    // sparqlResultsTable = new JTable(new SparqlTableModel());
     sparqlResultsTable = new JTable();
 
     // TODO Allow configuration to switch auto-resizing on/off (e.g. horizontal
@@ -5697,6 +5716,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         SwingUtilities.invokeLater(new Runnable() {
           public void run() {
             tabbedPane.setSelectedIndex(TAB_NUMBER_ASSERTIONS);
+            assertionsInput.requestFocus();
           }
         });
       } else {
@@ -5828,6 +5848,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       SwingUtilities.invokeLater(new Runnable() {
         public void run() {
           tabbedPane.setSelectedIndex(TAB_NUMBER_SPARQL);
+          sparqlInput.requestFocus();
         }
       });
     } catch (IOException ioExc) {
@@ -6888,6 +6909,24 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   }
 
   /**
+   * Launch a browser pointed at the overview video
+   */
+  private void viewOverviewVideo() {
+    try {
+      final URL url = new URL(OVERVIEW_VIDEO_LOCATION);
+      Desktop.getDesktop().browse(url.toURI());
+    } catch (Throwable throwable) {
+      LOGGER.error("Cannot launch browser to show the overview video",
+          throwable);
+      JOptionPane.showMessageDialog(this,
+          "Unable to launch a browser to show the overview video\n"
+              + "at " + OVERVIEW_VIDEO_LOCATION
+              + "\n\n" + throwable.getMessage(),
+          "Unable to Launch Video", JOptionPane.ERROR_MESSAGE);
+    }
+  }
+
+  /**
    * Get the version of the loaded Jena library
    * 
    * @return The version of the Jena library
@@ -7631,6 +7670,23 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     @Override
     public void actionPerformed(ActionEvent e) {
       configureSparqlServer();
+    }
+  }
+
+  /**
+   * Displays overview video
+   */
+  private class OverviewVideoListener implements ActionListener {
+    /**
+     * No operation
+     */
+    public OverviewVideoListener() {
+
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      viewOverviewVideo();
     }
   }
 
