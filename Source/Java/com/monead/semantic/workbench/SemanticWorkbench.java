@@ -99,6 +99,7 @@ import com.hp.hpl.jena.ontology.ConversionException;
 import com.hp.hpl.jena.ontology.Individual;
 import com.hp.hpl.jena.ontology.OntClass;
 import com.hp.hpl.jena.ontology.OntModel;
+import com.hp.hpl.jena.ontology.OntModelSpec;
 import com.hp.hpl.jena.query.ARQ;
 import com.hp.hpl.jena.query.Query;
 import com.hp.hpl.jena.query.QueryExecution;
@@ -213,7 +214,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "01.09.13";
+  public static final String VERSION = "01.09.14";
 
   /**
    * Serial UID
@@ -774,7 +775,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * View the about dialog
    */
   private JMenuItem helpAbout;
-  
+
   /**
    * View the overview video
    */
@@ -1536,7 +1537,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     if (!foundXsdFormat) {
       ValueFormatter.setFormat("decimal", "#,##0");
-      ValueFormatter.setFormat("double", "#,##0.0");
+      ValueFormatter.setFormat("double", "#,##0.0##");
       properties.put(
           ConfigurationProperty.PREFIX_NUMERIC_DATA_XSD_FORMAT_MAPPING
               .key() + "decimal",
@@ -1544,7 +1545,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       properties.put(
           ConfigurationProperty.PREFIX_NUMERIC_DATA_XSD_FORMAT_MAPPING
               .key() + "double",
-          "#,##0.0");
+          "#,##0.0##");
     }
   }
 
@@ -3346,16 +3347,15 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void publishModelToTheSparqlServer() {
     if (ontModel != null) {
-      final OntModel newModel = ModelFactory.createOntologyModel(ontModel
-          .getSpecification());
-      newModel.add(ontModel.getBaseModel());
+      final OntModel newModel = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
+      newModel.add(ontModel);
       SparqlServer.getInstance().setModel(newModel);
     } else {
       LOGGER.warn("There is no model to set on the SPARQL server");
       setStatus("There is no model to set on the SPARQL server");
     }
   }
-
+  
   /**
    * Make this functional
    */
@@ -5705,6 +5705,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       // endings, if found
       if (!loadCanceled) {
         assertionsInput.setText(allData.toString().replaceAll("\r\n", "\n"));
+        assertionsInput.setSelectionEnd(0);
+        assertionsInput.setSelectionStart(0);
         assertionsInput.moveCaretPosition(0);
 
         message = "Loaded file"
@@ -5716,7 +5718,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         SwingUtilities.invokeLater(new Runnable() {
           public void run() {
             tabbedPane.setSelectedIndex(TAB_NUMBER_ASSERTIONS);
-            assertionsInput.requestFocus();
+            setFocusOnCorrectTextArea();
           }
         });
       } else {
@@ -5848,7 +5850,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       SwingUtilities.invokeLater(new Runnable() {
         public void run() {
           tabbedPane.setSelectedIndex(TAB_NUMBER_SPARQL);
-          sparqlInput.requestFocus();
+          setFocusOnCorrectTextArea();
         }
       });
     } catch (IOException ioExc) {
@@ -6799,6 +6801,22 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     } else {
       editCommentToggle
           .setEnabled(false);
+    }
+  }
+
+  /**
+   * Set the focus in the "default" text area for the tab (if there is one).
+   * Also assure that the caret is visible.
+   */
+  private void setFocusOnCorrectTextArea() {
+    final int selectedTab = tabbedPane.getSelectedIndex();
+
+    if (selectedTab == TAB_NUMBER_SPARQL) {
+      sparqlInput.requestFocus();
+      sparqlInput.getCaret().setVisible(true);
+    } else if (selectedTab == TAB_NUMBER_ASSERTIONS) {
+      assertionsInput.requestFocus();
+      assertionsInput.getCaret().setVisible(true);
     }
   }
 
@@ -7781,6 +7799,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     @Override
     public void stateChanged(ChangeEvent arg0) {
       enableCommentToggle();
+      setFocusOnCorrectTextArea();
     }
   }
 

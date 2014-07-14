@@ -201,6 +201,8 @@ public class SparqlRunner implements Runnable {
       // SPARQL query
       qe = QueryExecutionFactory.create(query, model);
       resultSet = qe.execSelect();
+      LOGGER.debug("Result set, any data: "
+          + (resultSet == null ? resultSet : resultSet.hasNext()));
       returnResults(out, resultSet, null);
       qe.close();
     }
@@ -231,6 +233,7 @@ public class SparqlRunner implements Runnable {
     String dataType;
 
     if (httpErrorCodeAndMessage != null) {
+      LOGGER.warn("Error occurred obtaining SPARQL results: " + httpErrorCodeAndMessage);
       out.println("HTTP/1.1 " + httpErrorCodeAndMessage);
       // out.println("Date: Tue, 11 Feb 2014 01:15:05 GMT");
       out.println("Date: " + HTTP_HEADER_DATE_FORMAT.format(new Date()));
@@ -244,6 +247,7 @@ public class SparqlRunner implements Runnable {
       out.println("Connection: close");
       out.println("");
     } else {
+      LOGGER.info("SPARQL results being returned to remote caller");
       out.println("HTTP/1.1 200 OK");
       // out.println("Date: Tue, 11 Feb 2014 01:15:05 GMT");
       out.println("Date: " + HTTP_HEADER_DATE_FORMAT.format(new Date()));
@@ -474,9 +478,9 @@ public class SparqlRunner implements Runnable {
         LOGGER.debug("Payload length: " + receivedContentLength
             + "  Content length: " + contentLength);
       }
-      
+
       sparql = sparql.trim();
-      
+
       if (sparql.toUpperCase().startsWith(QUERY_PARAMETER_NAME)) {
         sparql = sparql.substring(QUERY_PARAMETER_NAME.length());
       }

@@ -238,7 +238,7 @@ public class SparqlTableModel extends AbstractTableModel {
       }
 
       rows.add(row);
-      LOGGER.debug("Added row with col count: " + row.size());
+//      LOGGER.debug("Added row with col count: " + row.size());
     }
 
     LOGGER.debug("Total rows in results: " + rows.size());
