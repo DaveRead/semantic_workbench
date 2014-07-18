@@ -214,7 +214,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "01.09.14";
+  public static final String VERSION = "01.09.15";
 
   /**
    * Serial UID
@@ -2698,35 +2698,35 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         "Allow Multiple Lines of Text Per Row in SPARQL Query Output");
     setupAllowMultilineResultOutput
         .setToolTipText("Wrap long values into multiple lines in a display cell");
-    setupAllowMultilineResultOutput.setSelected(true);
+    setupAllowMultilineResultOutput.setSelected(false);
     menu.add(setupAllowMultilineResultOutput);
 
     setupOutputFqnNamespaces = new JCheckBoxMenuItem(
         "Show FQN Namespaces Instead of Prefixes in Query Output");
     setupOutputFqnNamespaces
         .setToolTipText("Use the fully qualified namespace. If unchecked use the prefix, if defined");
-    setupOutputFqnNamespaces.setSelected(true);
+    setupOutputFqnNamespaces.setSelected(false);
     menu.add(setupOutputFqnNamespaces);
 
     setupOutputDatatypesForLiterals = new JCheckBoxMenuItem(
         "Show Datatypes on Literals");
     setupOutputDatatypesForLiterals
         .setToolTipText("Display the datatype after the value, e.g. 4^^xsd:integer");
-    setupOutputDatatypesForLiterals.setSelected(true);
+    setupOutputDatatypesForLiterals.setSelected(false);
     menu.add(setupOutputDatatypesForLiterals);
 
     setupOutputFlagLiteralValues = new JCheckBoxMenuItem(
         "Flag Literal Values in Query Output");
     setupOutputFlagLiteralValues
         .setToolTipText("Includes the text 'Lit:' in front of any literal values");
-    setupOutputFlagLiteralValues.setSelected(true);
+    setupOutputFlagLiteralValues.setSelected(false);
     menu.add(setupOutputFlagLiteralValues);
 
     setupApplyFormattingToLiteralValues = new JCheckBoxMenuItem(
         "Apply Formatting to Literal Values");
     setupApplyFormattingToLiteralValues
         .setToolTipText("Apply the XSD-based formatting defined in the configuration to literal values in SPARQL results and tree view display");
-    setupApplyFormattingToLiteralValues.setSelected(false);
+    setupApplyFormattingToLiteralValues.setSelected(true);
     menu.add(setupApplyFormattingToLiteralValues);
 
     setupDisplayImagesInSparqlResults = new JCheckBoxMenuItem(
@@ -3054,7 +3054,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       sparqlServiceUserId.setEnabled(true);
       LOGGER.debug("Enabled run query button (" + sparqlService + ")");
     } else if (enable
-        && sparqlInput.getText().toLowerCase().indexOf("from") > -1) {
+        && (sparqlInput.getText().toLowerCase().indexOf("from") > -1 || sparqlInput
+            .getText().toLowerCase().indexOf("service") > -1)) {
       runSparql.setEnabled(true);
       sparqlServicePassword.setEnabled(true);
       sparqlServiceUserId.setEnabled(true);
@@ -3347,7 +3348,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private void publishModelToTheSparqlServer() {
     if (ontModel != null) {
-      final OntModel newModel = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
+      final OntModel newModel = ModelFactory
+          .createOntologyModel(OntModelSpec.OWL_DL_MEM);
       newModel.add(ontModel);
       SparqlServer.getInstance().setModel(newModel);
     } else {
@@ -3355,7 +3357,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       setStatus("There is no model to set on the SPARQL server");
     }
   }
-  
+
   /**
    * Make this functional
    */
@@ -4243,7 +4245,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       qe = QueryExecutionFactory.create(query);
     } else if (sparqlServiceUrl.getSelectedIndex() == 0
         || serviceUrl.length() == 0) {
-      qe = QueryExecutionFactory.create(query, ontModel);
+      if (ontModel == null) {
+        qe = QueryExecutionFactory.create(query,
+            ModelFactory.createOntologyModel());
+      } else {
+        qe = QueryExecutionFactory.create(query, ontModel);
+      }
     } else {
       // ConnectionConfiguration
       final String defaultGraphUriText = defaultGraphUri.getText().trim();
@@ -5708,6 +5715,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         assertionsInput.setSelectionEnd(0);
         assertionsInput.setSelectionStart(0);
         assertionsInput.moveCaretPosition(0);
+        assertionsInput.scrollRectToVisible(new Rectangle(0, 0, 1, 1));
 
         message = "Loaded file"
             + (hasIncompleteAssertionsInput ? " (incomplete)" : "") + ": "
@@ -5817,6 +5825,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       sparqlInput.setSelectionEnd(0);
       sparqlInput.setSelectionStart(0);
       sparqlInput.moveCaretPosition(0);
+      sparqlInput.scrollRectToVisible(new Rectangle(0, 0, 1, 1));
 
       if (defaultGraphUriFromFile != null) {
         defaultGraphUri.setText(defaultGraphUriFromFile);
@@ -6751,6 +6760,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     final QueryInfo queryInfo = queryHistory.getCurrentQueryInfo();
 
     sparqlInput.setText(queryInfo.getSparqlQuery().getSparqlStatement());
+    sparqlInput.setCaretPosition(0);
 
     if (queryInfo.getServiceUrl() == null) {
       sparqlServiceUrl.setSelectedIndex(0);
@@ -6779,6 +6789,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       setStatus("Historical query retrieved.");
     }
 
+    setFocusOnCorrectTextArea();
     sparqlQuerySaved = true;
     enableControls(true);
   }
