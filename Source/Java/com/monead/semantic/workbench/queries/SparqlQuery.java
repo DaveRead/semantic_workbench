@@ -32,7 +32,6 @@ import java.io.Serializable;
  * 
  * @author David Read
  */
-
 public class SparqlQuery implements Serializable {
   /**
    * Serial UID

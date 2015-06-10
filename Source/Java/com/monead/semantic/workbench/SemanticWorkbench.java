@@ -93,7 +93,7 @@ import org.apache.commons.httpclient.HttpStatus;
 import org.apache.jena.atlas.web.auth.SimpleAuthenticator;
 import org.apache.jena.riot.RiotException;
 import org.apache.log4j.Logger;
-import org.mindswap.pellet.utils.VersionInfo;
+//import org.mindswap.pellet.utils.VersionInfo;
 
 import com.hp.hpl.jena.ontology.ConversionException;
 import com.hp.hpl.jena.ontology.Individual;
@@ -126,6 +126,8 @@ import com.hp.hpl.jena.update.UpdateProcessor;
 import com.hp.hpl.jena.update.UpdateRequest;
 import com.hp.hpl.jena.util.iterator.ExtendedIterator;
 import com.monead.semantic.workbench.images.ImageLibrary;
+import com.monead.semantic.workbench.queries.ExportFormat;
+import com.monead.semantic.workbench.queries.JsonExporter;
 import com.monead.semantic.workbench.queries.QueryHistory;
 import com.monead.semantic.workbench.queries.QueryInfo;
 import com.monead.semantic.workbench.queries.SparqlQuery;
@@ -158,9 +160,9 @@ import com.monead.semantic.workbench.utilities.ValueFormatter;
  * SemanticWorkbench - A GUI to input assertions, work with inferencing engines
  * and SPARQL queries
  * 
- * This program uses Jena and Pellet to provide the inference support.
+ * This program uses Jena to provide the inference support.
  * 
- * Copyright (C) 2010-2014 David S. Read
+ * Copyright (C) 2010-2015 David S. Read
  * 
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU Affero General Public License as published by the Free
@@ -176,7 +178,8 @@ import com.monead.semantic.workbench.utilities.ValueFormatter;
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
  * For information on Jena: http://jena.sourceforge.net/ For information on
- * Pellet: http://clarkparsia.com/pellet
+ * 
+ * TODO Add another reasoner such as HermiT
  * 
  * TODO Provide an option: When writing SPARQL results to a file, wrap URIs with
  * <>,
@@ -214,7 +217,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "01.09.15";
+  public static final String VERSION = "01.10.00";
 
   /**
    * Serial UID
@@ -225,7 +228,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * The set of formats that can be loaded. These are defined by Jena
    */
   private static final String[] FORMATS = {
-      "N3", "N-Triples", "RDF/XML", "Turtle"
+      "N3", "N-Triples", "RDF/XML", "Turtle", "JSON-LD", "RDF/JSON"
   };
 
   /**
@@ -275,16 +278,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * Default value used for true/false property values set to false
    */
   private static final String DEFAULT_PROPERTY_VALUE_NO = "No";
-
-  /**
-   * Value to identify a Comma Separated Value export format
-   */
-  private static final String EXPORT_FORMAT_LABEL_CSV = "CSV";
-
-  /**
-   * Value to identify a Tab Separated Value export format
-   */
-  private static final String EXPORT_FORMAT_LABEL_TSV = "TSV";
 
   /**
    * Minimum allowed font size
@@ -676,14 +669,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private JCheckBoxMenuItem setupDisplayImagesInSparqlResults;
 
   /**
-   * Export SPARQL results in a Comma Separated Value file
+   * Export SPARQL results in chosen format
    */
-  private JCheckBoxMenuItem setupExportSparqlResultsAsCsv;
-
-  /**
-   * Export SPARQL results in a Tab Separated Value file
-   */
-  private JCheckBoxMenuItem setupExportSparqlResultsAsTsv;
+  private JCheckBoxMenuItem[] setupExportSparqlResultsFormat;
 
   /**
    * Should SPARQL output be written directly to file rather than presented in
@@ -784,12 +772,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * Allows selection of the reasoning level
    */
-  private JComboBox reasoningLevel;
+  private JComboBox<ReasonerSelection> reasoningLevel;
 
   /**
    * Allows selection of the semantic syntax being used
    */
-  private JComboBox language;
+  private JComboBox<String> language;
 
   /**
    * Display the number of asserted triples in the model
@@ -841,7 +829,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * Choose SPARQL service to use
    */
-  private JComboBox sparqlServiceUrl;
+  private JComboBox<String> sparqlServiceUrl;
 
   /**
    * User id for accessing a secured SPARQL service
@@ -1117,16 +1105,16 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     setupAllowMultilineResultOutput.setSelected(properties
         .getProperty(
             ConfigurationProperty.SPARQL_DISPLAY_ALLOW_MULTILINE_OUTPUT
-                .key(), "Y")
+                .key(), "N")
         .toUpperCase()
         .startsWith("Y"));
     setupOutputFqnNamespaces.setSelected(properties
-        .getProperty(ConfigurationProperty.SHOW_FQN_NAMESPACES.key(), "Y")
+        .getProperty(ConfigurationProperty.SHOW_FQN_NAMESPACES.key(), "N")
         .toUpperCase()
         .startsWith("Y"));
     setupOutputDatatypesForLiterals.setSelected(properties
         .getProperty(
-            ConfigurationProperty.SHOW_DATATYPES_ON_LITERALS.key(), "Y")
+            ConfigurationProperty.SHOW_DATATYPES_ON_LITERALS.key(), "N")
         .toUpperCase()
         .startsWith("Y"));
     setupOutputFlagLiteralValues.setSelected(properties
@@ -1146,15 +1134,20 @@ public class SemanticWorkbench extends JFrame implements Runnable,
             "N").toUpperCase()
         .startsWith("Y"));
 
-    // SPARQL query export format - default to CSV
-    if (properties.getProperty(
+    // SPARQL query export format - default to first option
+    int formatIndex = 0;
+    ExportFormat[] formats = ExportFormat.values();
+    value = properties.getProperty(
         ConfigurationProperty.EXPORT_SPARQL_RESULTS_FORMAT.key(),
-        EXPORT_FORMAT_LABEL_CSV)
-        .equalsIgnoreCase(EXPORT_FORMAT_LABEL_TSV)) {
-      setupExportSparqlResultsAsTsv.setSelected(true);
-    } else {
-      setupExportSparqlResultsAsCsv.setSelected(true);
+        formats[0].getFormatName());
+    if (value != null) {
+      for (int index = 0; index < formats.length; ++index) {
+        if (value.equalsIgnoreCase(formats[index].getFormatName())) {
+          formatIndex = index;
+        }
+      }
     }
+    setupExportSparqlResultsFormat[formatIndex].setSelected(true);
 
     setupSparqlResultsToFile.setSelected(properties
         .getProperty(ConfigurationProperty.SPARQL_RESULTS_TO_FILE.key(),
@@ -1325,7 +1318,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     foundUrl = false;
 
     for (String key : prefixNames) {
-      sparqlServiceUrl.addItem(properties.get(key));
+      sparqlServiceUrl.addItem((String) properties.get(key));
       foundUrl = true;
     }
 
@@ -1627,15 +1620,14 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     int[] selectedIndices;
 
     Collections.sort(filteredItems);
-    final JList jListOfItems = new JList(
+    final JList<String> jListOfItems = new JList<String>(
         filteredItems.toArray(new String[filteredItems.size()]));
     JOptionPane.showMessageDialog(this, jListOfItems, "Select Items to Remove",
         JOptionPane.QUESTION_MESSAGE);
-
     selectedIndices = jListOfItems.getSelectedIndices();
     if (selectedIndices.length > 0) {
       LOGGER.debug("Items to remove from the filter map: "
-          + Arrays.toString(jListOfItems.getSelectedValues()));
+          + Arrays.toString(jListOfItems.getSelectedValuesList().toArray()));
       LOGGER
           .trace("Filtered list size before removal: " + filteredItems.size());
       for (int index = 0; index < selectedIndices.length; ++index) {
@@ -1779,15 +1771,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
             setupDisplayImagesInSparqlResults.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
                 : DEFAULT_PROPERTY_VALUE_NO);
 
-    if (setupExportSparqlResultsAsTsv.isSelected()) {
-      properties.setProperty(
-          ConfigurationProperty.EXPORT_SPARQL_RESULTS_FORMAT.key(),
-          EXPORT_FORMAT_LABEL_TSV);
-    } else {
-      properties.setProperty(
-          ConfigurationProperty.EXPORT_SPARQL_RESULTS_FORMAT.key(),
-          EXPORT_FORMAT_LABEL_CSV);
-    }
+    properties.setProperty(
+        ConfigurationProperty.EXPORT_SPARQL_RESULTS_FORMAT.key(),
+        chosenFormat().getFormatName());
 
     properties.setProperty(
         ConfigurationProperty.SPARQL_RESULTS_TO_FILE.key(),
@@ -2405,8 +2391,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           recentAssertionsFiles.get(
               recentFileNumber).getName());
       fileOpenRecentTriplesFile[recentFileNumber].setToolTipText(
-              recentAssertionsFiles.get(recentFileNumber)
-                      .getAbsolutePath());
+          recentAssertionsFiles.get(recentFileNumber)
+              .getAbsolutePath());
       fileOpenRecentTriplesFile[recentFileNumber]
           .addActionListener(new RecentAssertedTriplesFileOpenListener());
       fileAssertionsMenu.add(fileOpenRecentTriplesFile[recentFileNumber]);
@@ -2431,7 +2417,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         KeyEvent.VK_M, KeyEvent.ALT_MASK | KeyEvent.CTRL_MASK));
     fileSaveSerializedModel.setMnemonic(KeyEvent.VK_M);
     fileSaveSerializedModel.setToolTipText(
-            "Write the triples from the current model to a file");
+        "Write the triples from the current model to a file");
     fileSaveSerializedModel
         .addActionListener(new ModelSerializerListener());
     fileAssertionsMenu.add(fileSaveSerializedModel);
@@ -2476,7 +2462,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
           recentSparqlFiles.get(
               recentFileNumber).getName());
       fileOpenRecentSparqlFile[recentFileNumber].setToolTipText(
-              recentSparqlFiles.get(recentFileNumber).getAbsolutePath());
+          recentSparqlFiles.get(recentFileNumber).getAbsolutePath());
       fileOpenRecentSparqlFile[recentFileNumber]
           .addActionListener(new RecentSparqlFileOpenListener());
       fileSparqlMenu.add(fileOpenRecentSparqlFile[recentFileNumber]);
@@ -2500,7 +2486,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         KeyEvent.VK_R, KeyEvent.ALT_MASK | KeyEvent.CTRL_MASK));
     fileSaveSparqlResultsToFile.setMnemonic(KeyEvent.VK_R);
     fileSaveSparqlResultsToFile.setToolTipText(
-            "Write the current SPARQL results to a file");
+        "Write the current SPARQL results to a file");
     fileSaveSparqlResultsToFile
         .addActionListener(new FileSparqlResultsSaveListener());
     fileSparqlMenu.add(fileSaveSparqlResultsToFile);
@@ -2510,7 +2496,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     fileClearSparqlHistory = new JMenuItem("Clear SPARQL Query History");
     fileClearSparqlHistory.setMnemonic(KeyEvent.VK_C);
     fileClearSparqlHistory.setToolTipText(
-            "Clear the history of executed SPARQL queries");
+        "Clear the history of executed SPARQL queries");
     fileClearSparqlHistory
         .addActionListener(new FileClearSparqlHistoryListener());
     fileSparqlMenu.add(fileClearSparqlHistory);
@@ -2665,13 +2651,18 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     buttonGroup = new ButtonGroup();
     setupOutputAssertionLanguage = new JCheckBoxMenuItem[FORMATS.length + 1];
     setupOutputAssertionLanguage[0] = new JCheckBoxMenuItem(
-        "Output Format: Auto");
+        "Save Model as Input Format");
+    setupOutputAssertionLanguage[0]
+        .setToolTipText("Save the model using the serialization used to parse it");
     buttonGroup.add(setupOutputAssertionLanguage[0]);
     menu.add(setupOutputAssertionLanguage[0]);
 
     for (int index = 0; index < FORMATS.length; ++index) {
       setupOutputAssertionLanguage[index + 1] = new JCheckBoxMenuItem(
-          "Output Format: " + FORMATS[index]);
+          "Save Model as " + FORMATS[index]);
+      setupOutputAssertionLanguage[index + 1]
+          .setToolTipText("Save the model using the " + FORMATS[index]
+              + " format");
       buttonGroup.add(setupOutputAssertionLanguage[index + 1]);
       menu.add(setupOutputAssertionLanguage[index + 1]);
     }
@@ -2681,12 +2672,12 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     buttonGroup = new ButtonGroup();
     setupOutputModelTypeAssertions = new JCheckBoxMenuItem(
-        "Output Assertions Only");
+        "Save Model with Assertions Only");
     buttonGroup.add(setupOutputModelTypeAssertions);
     menu.add(setupOutputModelTypeAssertions);
 
     setupOutputModelTypeAssertionsAndInferences = new JCheckBoxMenuItem(
-        "Output Assertions and Inferences");
+        "Save Model with Assertions and Inferences");
     buttonGroup.add(setupOutputModelTypeAssertionsAndInferences);
     menu.add(setupOutputModelTypeAssertionsAndInferences);
 
@@ -2740,19 +2731,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     menu.addSeparator();
 
     buttonGroup = new ButtonGroup();
-    setupExportSparqlResultsAsCsv = new JCheckBoxMenuItem(
-        "Export SPARQL Results to " + EXPORT_FORMAT_LABEL_CSV);
-    setupExportSparqlResultsAsCsv
-        .setToolTipText("Export to Comma Separated Value format");
-    buttonGroup.add(setupExportSparqlResultsAsCsv);
-    menu.add(setupExportSparqlResultsAsCsv);
-
-    setupExportSparqlResultsAsTsv = new JCheckBoxMenuItem(
-        "Export SPARQL Results to " + EXPORT_FORMAT_LABEL_TSV);
-    setupExportSparqlResultsAsTsv
-        .setToolTipText("Export to Tab Separated Value format");
-    buttonGroup.add(setupExportSparqlResultsAsTsv);
-    menu.add(setupExportSparqlResultsAsTsv);
+    final ExportFormat[] formats = ExportFormat.values();
+    setupExportSparqlResultsFormat = new JCheckBoxMenuItem[formats.length];
+    for (int formatIndex = 0; formatIndex < formats.length; ++formatIndex) {
+      setupExportSparqlResultsFormat[formatIndex] = new JCheckBoxMenuItem(
+          "Save SPARQL Results as " + formats[formatIndex].getFormatName());
+      setupExportSparqlResultsFormat[formatIndex]
+          .setToolTipText("Export as "
+              + formats[formatIndex].getFormatDescription() + " format");
+      buttonGroup.add(setupExportSparqlResultsFormat[formatIndex]);
+      menu.add(setupExportSparqlResultsFormat[formatIndex]);
+    }
 
     menu.addSeparator();
 
@@ -2857,7 +2846,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     filterEnableFilters.setSelected(true);
     filterEnableFilters
         .setToolTipText(
-            "Enforce the filtered list of classes and properties when creating the tree view");
+        "Enforce the filtered list of classes and properties when creating the tree view");
     menu.add(filterEnableFilters);
 
     filterShowAnonymousNodes = new JCheckBoxMenuItem("Show Anonymous Nodes");
@@ -2885,7 +2874,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         "Edit List of Filtered Properties");
     filterEditFilteredProperties
         .setToolTipText(
-            "Present the list of filtered properties and allow them to be edited");
+        "Present the list of filtered properties and allow them to be edited");
     filterEditFilteredProperties
         .addActionListener(new EditFilteredPropertiesListener());
     menu.add(filterEditFilteredProperties);
@@ -2936,7 +2925,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         "Publish Current Reasoned Model");
     sparqlServerPublishCurrentModel.setMnemonic(KeyEvent.VK_P);
     sparqlServerPublishCurrentModel.setToolTipText(
-            "Set the model for the SPARQL server to the current one reasoned");
+        "Set the model for the SPARQL server to the current one reasoned");
     sparqlServerPublishCurrentModel
         .addActionListener(new SparqlServerPublishModelListener());
     menu.add(sparqlServerPublishCurrentModel);
@@ -3106,7 +3095,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
      */
     enableSaveTriples = enable && assertionsInput.getText().trim().length() > 0
         && (!hasIncompleteAssertionsInput
-          || (rdfFileSource != null && rdfFileSource.isUrl()));
+        || (rdfFileSource != null && rdfFileSource.isUrl()));
 
     if (runInferencing.isEnabled() != enableRunInferencing) {
       runInferencing.setEnabled(enableRunInferencing);
@@ -3283,13 +3272,13 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         if (SparqlServer.getInstance().isActive()) {
           if (SparqlServer.getInstance().areRemoteUpdatesPermitted()) {
             sparqlServerInfo.setBorder(BorderFactory
-                    .createTitledBorder(
-                        BorderFactory.createLineBorder(Color.red.darker()),
-                        "SPARQL Server Status (Updates Allowed)",
-                        TitledBorder.DEFAULT_JUSTIFICATION
-                        , TitledBorder.DEFAULT_POSITION, BorderFactory
-                            .createTitledBorder("").getTitleFont(),
-                        Color.red.darker()));
+                .createTitledBorder(
+                    BorderFactory.createLineBorder(Color.red.darker()),
+                    "SPARQL Server Status (Updates Allowed)",
+                    TitledBorder.DEFAULT_JUSTIFICATION
+                    , TitledBorder.DEFAULT_POSITION, BorderFactory
+                        .createTitledBorder("").getTitleFont(),
+                    Color.red.darker()));
 
           }
           sparqlServerInfo.setForeground(Color.blue.darker());
@@ -3454,7 +3443,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   private void setupControls() {
     LOGGER.debug("setupControls");
 
-    reasoningLevel = new JComboBox();
+    reasoningLevel = new JComboBox<ReasonerSelection>();
     for (ReasonerSelection reasoner : ReasonerSelection.values()) {
       reasoningLevel.addItem(reasoner);
     }
@@ -3463,7 +3452,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         .getSelectedItem()).description());
     reasoningLevel.addActionListener(new ReasonerConfigurationChange());
 
-    language = new JComboBox();
+    language = new JComboBox<String>();
     language.addItem("Auto");
     for (String lang : FORMATS) {
       language.addItem(lang);
@@ -3510,7 +3499,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     sparqlServicePassword = new JPasswordField(10);
 
     // SPARQL service URLs
-    sparqlServiceUrl = new JComboBox();
+    sparqlServiceUrl = new JComboBox<String>();
     sparqlServiceUrl.setEditable(true);
     sparqlServiceUrl.addActionListener(new SparqlModelChoiceListener());
     sparqlServiceUrl.getEditor().getEditorComponent().addKeyListener(
@@ -3964,22 +3953,22 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     final int startLinePos = message.indexOf(lineNumStartToken);
     final int endLinePos = message.substring(startLinePos).indexOf(
         lineNumEndToken)
-          + startLinePos;
+        + startLinePos;
     final int startColPos = message.indexOf(colNumStartToken);
     final int endColPos = message.substring(startColPos)
         .indexOf(colNumEndToken)
-          + startColPos;
+        + startColPos;
     if (startLinePos > -1 && startColPos > startLinePos) {
       try {
         lineAndColumn[0] = Integer.parseInt(message.substring(
             startLinePos + lineNumStartToken.length(),
-              endLinePos).trim());
+            endLinePos).trim());
         lineAndColumn[1] = Integer.parseInt(message.substring(
             startColPos + colNumStartToken.length(),
-              endColPos).trim());
+            endColPos).trim());
       } catch (Throwable parseError) {
         LOGGER.warn("Cannot extract line/col from exception message: "
-              + message, parseError);
+            + message, parseError);
       }
     }
 
@@ -4328,7 +4317,6 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     } else {
       // Not a construct - assume select
       resultSet = qe.execSelect();
-
       if (setupSparqlResultsToFile.isSelected()) {
         numResults = writeSparqlResultsDirectlyToFile(resultSet,
             new SparqlResultsFormatter(
@@ -4344,6 +4332,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
          * history
          */
         resultSet = null;
+        message = "Results written to file";
       }
     }
 
@@ -4357,7 +4346,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     final SparqlResultItemRenderer renderer = new SparqlResultItemRenderer(
-            setupAllowMultilineResultOutput.isSelected());
+        setupAllowMultilineResultOutput.isSelected());
     renderer.setFont(sparqlResultsTable.getFont());
     sparqlResultsTable.setDefaultRenderer(SparqlResultItem.class, renderer);
     sparqlResultsTable.setModel(tableModel);
@@ -4493,6 +4482,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     LOGGER.debug("Model differences computed to identify inferred triples");
 
     writer = new StringWriter();
+    // TODO JenaJSONLD.init();
     tempModel.write(writer, assertionLanguage);
     LOGGER
         .debug("String representation of differences created to show inferred triples using "
@@ -5310,8 +5300,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     final Wrapper wrapper = getSelectedWrapperInTree(event);
     if (wrapper != null) {
       if (wrapper instanceof WrapperClass
-            || wrapper instanceof WrapperDataProperty
-            || wrapper instanceof WrapperObjectProperty) {
+          || wrapper instanceof WrapperDataProperty
+          || wrapper instanceof WrapperObjectProperty) {
         final FilterValuePopup popup = new FilterValuePopup(wrapper);
         popup.show(event.getComponent(), event.getX(), event.getY());
       } else if (wrapper instanceof WrapperInstance) {
@@ -5666,7 +5656,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
         warningMessage
             .append("into the model when it is built.\n\nDisplay size limit (bytes): ");
         warningMessage.append(INTEGER_COMMA_FORMAT
-                        .format(MAX_ASSERTION_BYTES_TO_LOAD_INTO_TEXT_AREA));
+            .format(MAX_ASSERTION_BYTES_TO_LOAD_INTO_TEXT_AREA));
         if (rdfFileSource.isFile()) {
           warningMessage.append("\nFile size (bytes):");
           warningMessage.append(INTEGER_COMMA_FORMAT.format(rdfFileSource
@@ -6469,7 +6459,8 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     }
 
     fileChooser.setDialogTitle("Save SPARQL Results to File (Format:"
-        + (setupExportSparqlResultsAsCsv.isSelected() ? "CSV" : "TSV") + ")");
+        + chosenFormat().getFormatName() + ")");
+    // + (setupExportSparqlResultsAsCsv.isSelected() ? "CSV" : "TSV") + ")");
     choice = fileChooser.showSaveDialog(this);
     destinationFile = fileChooser.getSelectedFile();
 
@@ -6484,6 +6475,24 @@ public class SemanticWorkbench extends JFrame implements Runnable,
       sparqlResultsExportFile = destinationFile;
       runSparqlResultsExport();
     }
+  }
+
+  /**
+   * Get the currently chosen format from the menu. Defaults to the first
+   * available format
+   * 
+   * @return The currently chosen format
+   */
+  private ExportFormat chosenFormat() {
+    ExportFormat[] formats = ExportFormat.values();
+
+    for (int formatIndex = 0; formatIndex < formats.length; ++formatIndex) {
+      if (setupExportSparqlResultsFormat[formatIndex].isSelected()) {
+        return formats[formatIndex];
+      }
+    }
+
+    return formats[0];
   }
 
   /**
@@ -6514,7 +6523,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     long numRows = 0;
     List<String> columns;
     PrintWriter out = null;
-    final boolean toCsv = setupExportSparqlResultsAsCsv.isSelected();
+    final ExportFormat chosenFormat = chosenFormat();
     int fileNumber = 0;
     File outputFile;
     File outputDirectory;
@@ -6535,11 +6544,11 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     do {
       ++fileNumber;
       outputFile = new File(outputDirectory, SPARQL_DIRECT_EXPORT_FILE_PREFIX
-          + fileNumber + "." + (toCsv ? "csv" : "txt"));
+          + fileNumber + "." + chosenFormat.getDefaultFileSuffix());
     } while (outputFile.exists());
 
     message = "SPARQL results ("
-        + (toCsv ? EXPORT_FORMAT_LABEL_CSV : EXPORT_FORMAT_LABEL_TSV)
+        + chosenFormat.getFormatName()
         + ") directly to "
         + outputFile.getAbsolutePath();
 
@@ -6547,51 +6556,60 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     tableModel.displayMessageInTable("Exporting Results Directly to File",
         new String[] {
-          outputFile.getAbsolutePath()
+        outputFile.getAbsolutePath()
         });
 
     LOGGER
         .info("Write SPARQL results to file, " + outputFile.getAbsolutePath());
 
     try {
-      out = new PrintWriter(new FileWriter(outputFile));
+      if (chosenFormat.equals(ExportFormat.JSON)) {
+        // JSON
+        JsonExporter exporter = new JsonExporter(outputFile);
+        exporter.writeResultSet(results);
+      } else {
+        // TSV or CSV - manually format and output the text
+        out = new PrintWriter(outputFile);
 
-      // Output column names
-      columns = results.getResultVars();
-      for (int columnNumber = 0; columnNumber < columns.size(); ++columnNumber) {
-        if (columnNumber > 0) {
-          out.print(toCsv ? ',' : '\t');
-        }
-
-        if (toCsv) {
-          out.print(TextProcessing.formatForCsvColumn(columns.get(columnNumber)));
-        } else {
-          out.print(TextProcessing.formatForTsvColumn(columns.get(columnNumber)));
-        }
-      }
-
-      out.println();
-
-      // Output data
-      while (results.hasNext()) {
-        ++numRows;
-        final QuerySolution solution = results.next();
-
+        // Output column names
+        columns = results.getResultVars();
         for (int columnNumber = 0; columnNumber < columns.size(); ++columnNumber) {
           if (columnNumber > 0) {
-            out.print(toCsv ? ',' : '\t');
+            out.print(chosenFormat.equals(ExportFormat.CSV) ? ',' : '\t');
           }
 
-          if (toCsv) {
-            out.print(TextProcessing.formatForCsvColumn(formatter.format(
-                solution, columns.get(columnNumber), false)));
+          if (chosenFormat.equals(ExportFormat.CSV)) {
+            out.print(TextProcessing.formatForCsvColumn(columns
+                .get(columnNumber)));
           } else {
-            out.print(TextProcessing.formatForTsvColumn(formatter.format(
-                solution, columns.get(columnNumber), false)));
+            out.print(TextProcessing.formatForTsvColumn(columns
+                .get(columnNumber)));
           }
         }
 
         out.println();
+
+        // Output data
+        while (results.hasNext()) {
+          ++numRows;
+          final QuerySolution solution = results.next();
+
+          for (int columnNumber = 0; columnNumber < columns.size(); ++columnNumber) {
+            if (columnNumber > 0) {
+              out.print(chosenFormat.equals(ExportFormat.CSV) ? ',' : '\t');
+            }
+
+            if (chosenFormat.equals(ExportFormat.CSV)) {
+              out.print(TextProcessing.formatForCsvColumn(formatter.format(
+                  solution, columns.get(columnNumber), false)));
+            } else {
+              out.print(TextProcessing.formatForTsvColumn(formatter.format(
+                  solution, columns.get(columnNumber), false)));
+            }
+          }
+
+          out.println();
+        }
       }
     } catch (Throwable throwable) {
       LOGGER.error(
@@ -6630,13 +6648,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    */
   private String writeSparqlResults() {
     PrintWriter out = null;
-    boolean toCsv;
-
-    // Either CSV or TSV currently
-    toCsv = setupExportSparqlResultsAsCsv.isSelected();
+    ExportFormat chosenFormat = chosenFormat();
 
     String message = "SPARQL results ("
-        + (toCsv ? EXPORT_FORMAT_LABEL_CSV : EXPORT_FORMAT_LABEL_TSV) + ") to "
+        + chosenFormat.getFormatName() + ") to "
         + sparqlResultsExportFile;
 
     setStatus("Writing " + message);
@@ -6644,30 +6659,17 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     LOGGER.info("Write SPARQL results to file, " + sparqlResultsExportFile);
 
     try {
-      out = new PrintWriter(new FileWriter(sparqlResultsExportFile, false));
-
       final SparqlTableModel model = (SparqlTableModel) sparqlResultsTable
           .getModel();
 
-      // Output column names
-      for (int columnNumber = 0; columnNumber < model.getColumnCount(); ++columnNumber) {
-        if (columnNumber > 0) {
-          out.print(toCsv ? ',' : '\t');
-        }
+      if (chosenFormat.equals(ExportFormat.JSON)) {
+        JsonExporter exporter = new JsonExporter(sparqlResultsExportFile);
+        exporter.writeTableModel(model);
+      } else {
+        boolean toCsv = chosenFormat.equals(ExportFormat.CSV);
+        out = new PrintWriter(new FileWriter(sparqlResultsExportFile, false));
 
-        if (toCsv) {
-          out.print(TextProcessing.formatForCsvColumn(model
-              .getColumnName(columnNumber)));
-        } else {
-          out.print(TextProcessing.formatForTsvColumn(model
-              .getColumnName(columnNumber)));
-        }
-      }
-
-      out.println();
-
-      // Output row data
-      for (int rowNumber = 0; rowNumber < model.getRowCount(); ++rowNumber) {
+        // Output column names
         for (int columnNumber = 0; columnNumber < model.getColumnCount(); ++columnNumber) {
           if (columnNumber > 0) {
             out.print(toCsv ? ',' : '\t');
@@ -6675,15 +6677,33 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
           if (toCsv) {
             out.print(TextProcessing.formatForCsvColumn(model
-                .getValueAt(rowNumber, columnNumber)));
+                .getColumnName(columnNumber)));
           } else {
             out.print(TextProcessing.formatForTsvColumn(model
-                .getValueAt(rowNumber, columnNumber)));
+                .getColumnName(columnNumber)));
           }
         }
-        out.println();
-      }
 
+        out.println();
+
+        // Output row data
+        for (int rowNumber = 0; rowNumber < model.getRowCount(); ++rowNumber) {
+          for (int columnNumber = 0; columnNumber < model.getColumnCount(); ++columnNumber) {
+            if (columnNumber > 0) {
+              out.print(toCsv ? ',' : '\t');
+            }
+
+            if (toCsv) {
+              out.print(TextProcessing.formatForCsvColumn(model
+                  .getValueAt(rowNumber, columnNumber)));
+            } else {
+              out.print(TextProcessing.formatForTsvColumn(model
+                  .getValueAt(rowNumber, columnNumber)));
+            }
+          }
+          out.println();
+        }
+      }
       message = "Completed writing " + message;
     } catch (IOException ioExc) {
       LOGGER.error("Unable to write to file: " + sparqlResultsExportFile,
@@ -6904,8 +6924,9 @@ public class SemanticWorkbench extends JFrame implements Runnable,
     String slMessage;
 
     slMessage = "Semantic Workbench\n\nVersion: " + VERSION
-        + "\nJena Version: " + getJenaVersion() + "\nPellet Version: "
-        + getPelletVersion() + "\n\nSystem information:\n  Free Memory: "
+        + "\nJena Version: " + getJenaVersion()
+        // + "\nPellet Version: " + getPelletVersion()
+        + "\n\nSystem information:\n  Free Memory: "
         + INTEGER_COMMA_FORMAT.format(Runtime.getRuntime().freeMemory())
         + "\n  Total Memory: "
         + INTEGER_COMMA_FORMAT.format(Runtime.getRuntime().totalMemory())
@@ -6920,7 +6941,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     slMessage += "David Read, www.monead.com\n\n";
 
-    slMessage += "Copyright (c) 2010-2014\n\n"
+    slMessage += "Copyright (c) 2010-2015\n\n"
         + "This program is free software: you can redistribute it and/or modify "
         + "it under the terms of the GNU Affero General Public License as "
         + "published by the Free Software Foundation, either version 3 of the "
@@ -6969,10 +6990,10 @@ public class SemanticWorkbench extends JFrame implements Runnable,
    * 
    * @return The version of the Pellet library
    */
-  private String getPelletVersion() {
+/**  private String getPelletVersion() {
     return VersionInfo.getInstance().getVersionString() + " ("
         + VersionInfo.getInstance().getReleaseDate() + ")";
-  }
+  } **/
 
   /**
    * End the application

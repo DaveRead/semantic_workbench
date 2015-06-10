@@ -19,21 +19,33 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 /**
+ * Present a dialog of configuration options for the SPARQL server
+ * 
  * <p>
- * Title:
+ * Copyright: Copyright (c) 2015, David Read
  * </p>
  * <p>
- * Description:
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation; either version 2 of the License, or (at your option) any later
+ * version.
  * </p>
  * <p>
- * Copyright: Copyright (c) 2005
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+ * details.
  * </p>
  * <p>
- * Company: Blue Slate Solutions
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+ * Place, Suite 330, Boston, MA 02111-1307 USA
+ * </p>
+ * <p>
  * </p>
  * 
  * @author David Read
- * @version $Id: PasswordDialog.java,v 1.2 2005/01/24 23:10:37 uid513 Exp $
+ *
  */
 public class SparqlServerConfigurationDialog extends JDialog implements
     ActionListener {
@@ -50,10 +62,10 @@ public class SparqlServerConfigurationDialog extends JDialog implements
       .getLogger(SparqlServerConfigurationDialog.class);
 
   /**
-   * The set of allowed maximum processing time selectiolns
+   * The set of allowed maximum processing time selections
    */
-  private static final String[] MAX_TIME_OPTIONS = {
-      "15", "30", "60", "120", "600"
+  private static final Integer[] MAX_TIME_OPTIONS = {
+      15, 30, 60, 120, 600
   };
 
   /**
@@ -64,7 +76,7 @@ public class SparqlServerConfigurationDialog extends JDialog implements
   /**
    * The maximum runtime for a query
    */
-  private JComboBox maxRuntime;
+  private JComboBox<Integer> maxRuntime;
 
   /**
    * Allow remote updates to the model
@@ -135,8 +147,8 @@ public class SparqlServerConfigurationDialog extends JDialog implements
     portNumber.setText(currentPort + "");
 
     tempPanel.add(new JLabel("Max Query Runtime (seconds): "));
-    tempPanel.add(maxRuntime = new JComboBox(MAX_TIME_OPTIONS));
-    maxRuntime.setSelectedItem(currentMaxRuntime + "");
+    tempPanel.add(maxRuntime = new JComboBox<Integer>(MAX_TIME_OPTIONS));
+    maxRuntime.setSelectedItem(currentMaxRuntime);
 
     tempPanel.add(new JLabel("Remote Updates Allowed: "));
     tempPanel.add(supportRemoteUpdate = new JCheckBox());
@@ -157,7 +169,7 @@ public class SparqlServerConfigurationDialog extends JDialog implements
   }
 
   /**
-   * Check whetyher the user pressed the OK button. Only meaningful if checked
+   * Check whether the user pressed the OK button. Only meaningful if checked
    * after the dialog is closed.
    * 
    * @return True if the user pressed the OK button
@@ -195,18 +207,7 @@ public class SparqlServerConfigurationDialog extends JDialog implements
    * @return The maximum runtime entered
    */
   public Integer getMaxRuntime() {
-    Integer value;
-
-    try {
-      value = Integer.parseInt((String) maxRuntime.getSelectedItem());
-    } catch (Throwable throwable) {
-      LOGGER.error(
-          "Illegal maximum runtime entered: " + maxRuntime.getSelectedItem(),
-          throwable);
-      value = null;
-    }
-
-    return value;
+    return maxRuntime.getItemAt(maxRuntime.getSelectedIndex());
   }
 
   /**

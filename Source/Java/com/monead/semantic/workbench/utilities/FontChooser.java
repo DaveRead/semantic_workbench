@@ -32,15 +32,36 @@ import javax.swing.text.SimpleAttributeSet;
 import org.apache.log4j.Logger;
 
 /**
- * FontChooser
- * 
+ * <p>
  * From: http://examples.oreilly.com/jswing2/code/ch12/FontChooser.java
- * 
+ * </p>
+ * <p>
  * A font chooser that allows users to pick a font by name, size, style, and
  * color. The color selection is provided by a JColorChooser pane. This dialog
  * builds an AttributeSet suitable for use with JTextPane.
- * 
+ * </p>
+ * <p>
  * DSR: Minor alteration to make all attributes private
+ * </p>
+ * <p>
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation; either version 2 of the License, or (at your option) any later
+ * version.
+ * </p>
+ * <p>
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+ * details.
+ * </p>
+ * <p>
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+ * Place, Suite 330, Boston, MA 02111-1307 USA
+ * </p>
+ * <p>
+ * </p>
  */
 @SuppressWarnings("serial")
 public class FontChooser extends JDialog implements Runnable, ActionListener,
@@ -63,7 +84,7 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
   /**
    * The font name
    */
-  private JComboBox fontName;
+  private JComboBox<String> fontName;
 
   /**
    * Select bold font
@@ -133,7 +154,7 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
     final Container c = getContentPane();
 
     final JPanel fontPanel = new JPanel();
-    fontName = new JComboBox(new String[] {
+    fontName = new JComboBox<String>(new String[] {
         "TimesRoman", "Helvetica", "Courier"
     });
     fontName.setSelectedIndex(1);
