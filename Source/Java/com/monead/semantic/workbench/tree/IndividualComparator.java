@@ -2,7 +2,7 @@ package com.monead.semantic.workbench.tree;
 
 import java.util.Comparator;
 
-import com.hp.hpl.jena.ontology.Individual;
+import org.apache.jena.ontology.Individual;
 
 /**
  * Compares Individuals by name. A non-anonymous node will always be less than

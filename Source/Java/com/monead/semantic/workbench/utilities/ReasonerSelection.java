@@ -1,9 +1,11 @@
 package com.monead.semantic.workbench.utilities;
 
-// Removed Pellet options since it is not compatible with Jena 1.13
+import org.apache.jena.ontology.OntModelSpec;
+import org.mindswap.pellet.jena.PelletReasonerFactory;
+
 //import org.mindswap.pellet.jena.PelletReasonerFactory;
 
-import com.hp.hpl.jena.ontology.OntModelSpec;
+//import com.clarkparsia.pellet.owlapiv3.PelletReasonerFactory;
 
 /**
  * Represents a reasoner that can be selected when creating a model.
@@ -153,13 +155,17 @@ public enum ReasonerSelection {
    */
   OWLFULL_OWL("OWL Full/OWL",
       "An OWL DL model which uses a rule-based reasoner with OWL rules",
-      OntModelSpec.OWL_MEM_RULE_INF);
+      OntModelSpec.OWL_MEM_RULE_INF),
 
   /**
    * Pellet reasoner
    */
-  // PELLET("Pellet", "The Pellet reasoner", PelletReasonerFactory.THE_SPEC);
+  PELLET("Pellet", "The Pellet reasoner", PelletReasonerFactory.THE_SPEC)
 
+  // TROWL_OWL("OWL Full/OWL", "An OWL DL model which uses the TrOWL Reasoner",
+  // TrOWLJenaFactory.THE_SPEC)
+
+  ;
   /**
    * The name of the reasoner
    */

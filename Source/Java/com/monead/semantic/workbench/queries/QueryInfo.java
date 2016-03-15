@@ -2,6 +2,9 @@ package com.monead.semantic.workbench.queries;
 
 import java.io.Serializable;
 import java.lang.ref.SoftReference;
+
+import org.apache.log4j.Logger;
+
 import com.monead.semantic.workbench.SparqlTableModel;
 
 /**
@@ -43,6 +46,11 @@ public class QueryInfo implements Serializable {
   private static final long serialVersionUID = 20140501;
 
   /**
+   * Logger Instance
+   */
+  private static final Logger LOGGER = Logger.getLogger(QueryInfo.class);
+
+  /**
    * The SPARQL query represented by this query info instance
    */
   private SparqlQuery sparqlQuery;
@@ -81,6 +89,9 @@ public class QueryInfo implements Serializable {
     setServiceUrl(pServiceUrl);
     setDefaultGraphUri(pDefaultGraphUri);
     setResults(pResults);
+    LOGGER.debug("New QueryInfo: pQuery:" + pQuery + " pServiceUrl:"
+        + pServiceUrl + " pDefaultGraph:" + pDefaultGraphUri + " pResults:"
+        + pResults + ")");
   }
 
   /**
@@ -113,7 +124,8 @@ public class QueryInfo implements Serializable {
   }
 
   /**
-   * Set the service URL used when executing this query. Use null to represent the local model.
+   * Set the service URL used when executing this query. Use null to represent
+   * the local model.
    * 
    * @param pServiceUrl
    *          The service URL for the query

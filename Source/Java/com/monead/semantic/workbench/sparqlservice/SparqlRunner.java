@@ -14,16 +14,17 @@ import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.jena.ontology.OntModel;
+import org.apache.jena.query.QueryExecution;
+import org.apache.jena.query.QueryExecutionFactory;
+import org.apache.jena.query.QuerySolution;
+import org.apache.jena.query.ResultSet;
+import org.apache.jena.update.GraphStore;
+import org.apache.jena.update.GraphStoreFactory;
+import org.apache.jena.update.UpdateAction;
 import org.apache.log4j.Logger;
 
-import com.hp.hpl.jena.ontology.OntModel;
-import com.hp.hpl.jena.query.QueryExecution;
-import com.hp.hpl.jena.query.QueryExecutionFactory;
-import com.hp.hpl.jena.query.QuerySolution;
-import com.hp.hpl.jena.query.ResultSet;
-import com.hp.hpl.jena.update.GraphStore;
-import com.hp.hpl.jena.update.GraphStoreFactory;
-import com.hp.hpl.jena.update.UpdateAction;
 import com.monead.semantic.workbench.SemanticWorkbench;
 
 /**
@@ -178,7 +179,8 @@ public class SparqlRunner implements Runnable {
    * @throws IOException
    *           If a communications error occurs
    */
-  private void executeSparql(PrintWriter out, String sparql) throws IOException {
+  private void executeSparql(PrintWriter out, String sparql)
+      throws IOException {
     QueryExecution qe;
     ResultSet resultSet;
 
@@ -223,7 +225,7 @@ public class SparqlRunner implements Runnable {
    */
   private void returnResults(PrintWriter out, ResultSet results,
       String httpErrorCodeAndMessage)
-      throws IOException {
+          throws IOException {
     List<String> columns;
     final List<String> columnLabels = new ArrayList<String>();
     QuerySolution solution;
@@ -233,7 +235,8 @@ public class SparqlRunner implements Runnable {
     String dataType;
 
     if (httpErrorCodeAndMessage != null) {
-      LOGGER.warn("Error occurred obtaining SPARQL results: " + httpErrorCodeAndMessage);
+      LOGGER.warn("Error occurred obtaining SPARQL results: "
+          + httpErrorCodeAndMessage);
       out.println("HTTP/1.1 " + httpErrorCodeAndMessage);
       // out.println("Date: Tue, 11 Feb 2014 01:15:05 GMT");
       out.println("Date: " + HTTP_HEADER_DATE_FORMAT.format(new Date()));
@@ -242,7 +245,7 @@ public class SparqlRunner implements Runnable {
       // out.println("Expires: Wed, 31 Dec 1969 19:00:00 EST");
       out.println("Expires: " + HTTP_HEADER_DATE_FORMAT.format(new Date()));
       out.println("X-Monead-Server: Monead-Semantic-Workbench-Server-"
-              + SemanticWorkbench.VERSION);
+          + SemanticWorkbench.VERSION);
       out.println("Content-Type: application/sparql-results+xml");
       out.println("Connection: close");
       out.println("");
@@ -256,7 +259,7 @@ public class SparqlRunner implements Runnable {
       // out.println("Expires: Wed, 31 Dec 1969 19:00:00 EST");
       out.println("Expires: " + HTTP_HEADER_DATE_FORMAT.format(new Date()));
       out.println("X-Monead-Server: Monead-Semantic-Workbench-Server-"
-            + SemanticWorkbench.VERSION);
+          + SemanticWorkbench.VERSION);
       out.println("Content-Type: application/sparql-results+xml");
       out.println("Connection: close");
       out.println("");
@@ -295,6 +298,7 @@ public class SparqlRunner implements Runnable {
                 value = literal;
                 dataType = null;
               }
+              value = StringEscapeUtils.escapeXml11(value);
               out.println("<binding name=\"" + var + "\">");
               if (dataType == null) {
                 out.println("<literal>" + value + "</literal>");
@@ -305,11 +309,13 @@ public class SparqlRunner implements Runnable {
               out.println("</binding>");
             } else if (solution.get(var).isAnon()) {
               value = solution.getResource(var).toString();
+              value = StringEscapeUtils.escapeXml11(value);
               out.println("<binding name=\"" + var + "\">");
               out.println("<bnode>" + value + "</bnode>");
               out.println("</binding>");
             } else {
               value = solution.getResource(var).toString();
+              value = StringEscapeUtils.escapeXml11(value);
               out.println("<binding name=\"" + var + "\">");
               out.println("<uri>" + value + "</uri>");
               out.println("</binding>");
@@ -346,7 +352,7 @@ public class SparqlRunner implements Runnable {
     out.println("Cache-Control: no-cache");
     out.println("Expires: Wed, 31 Dec 1969 19:00:00 EST");
     out.println("X-Monead-Server: Monead-Semantic-Workbench-Server-"
-          + SemanticWorkbench.VERSION);
+        + SemanticWorkbench.VERSION);
     out.println("Content-Type: application/sparql-results+xml");
     out.println("Connection: close");
     out.println("");
@@ -362,7 +368,8 @@ public class SparqlRunner implements Runnable {
     out.println("<uri>http://monead.com/semantic/data/vehicle#gallons</uri>");
     out.println("</binding>");
     out.println("<binding name=\"o\">");
-    out.println("<literal datatype=\"http://www.w3.org/2001/XMLSchema#decimal\">10.316</literal>");
+    out.println(
+        "<literal datatype=\"http://www.w3.org/2001/XMLSchema#decimal\">10.316</literal>");
     out.println("</binding>");
     out.println("</result>");
     out.println("<result>");
@@ -370,7 +377,8 @@ public class SparqlRunner implements Runnable {
     out.println("<uri>http://monead.com/semantic/data/vehicle#vehicle</uri>");
     out.println("</binding>");
     out.println("<binding name=\"o\">");
-    out.println("<uri>http://monead.com/semantic/data/vehicle/personal#car2</uri>");
+    out.println(
+        "<uri>http://monead.com/semantic/data/vehicle/personal#car2</uri>");
     out.println("</binding>");
     out.println("</result>");
     out.println("</results>");
@@ -438,8 +446,9 @@ public class SparqlRunner implements Runnable {
           LOGGER.debug("POST content length: " + contentLength);
         } catch (Throwable throwable) {
           LOGGER
-              .warn("Could not parse content length, relying on socket timeout since determining end of message isn't possible ("
-                  + line + ")");
+              .warn(
+                  "Could not parse content length, relying on socket timeout since determining end of message isn't possible ("
+                      + line + ")");
         }
       } else if (line.toLowerCase().startsWith("get")) {
         queryStart = line.toUpperCase().indexOf(QUERY_PARAMETER_NAME);
@@ -452,8 +461,9 @@ public class SparqlRunner implements Runnable {
         LOGGER.debug("POST Request");
       } else if (line.trim().length() == 0) {
         LOGGER
-            .debug("SPARQL request blank line found, POST payload will follow (if applicable): "
-                + postContentBeginningLine);
+            .debug(
+                "SPARQL request blank line found, POST payload will follow (if applicable): "
+                    + postContentBeginningLine);
         break;
       }
     }

@@ -2,7 +2,7 @@ package com.monead.semantic.workbench.tree;
 
 import java.util.Comparator;
 
-import com.hp.hpl.jena.ontology.OntClass;
+import org.apache.jena.ontology.OntClass;
 
 /**
  * Compare two ontology classes for sorting based on the class name (without the namespace)

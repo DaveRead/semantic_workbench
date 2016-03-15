@@ -9,6 +9,9 @@ import java.util.Iterator;
 
 import javax.swing.table.TableModel;
 
+import org.apache.jena.query.QuerySolution;
+import org.apache.jena.query.ResultSet;
+import org.apache.jena.rdf.model.RDFNode;
 import org.apache.log4j.Logger;
 
 import com.fasterxml.jackson.core.JsonEncoding;
@@ -16,9 +19,6 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonGenerator.Feature;
 import com.fasterxml.jackson.core.util.MinimalPrettyPrinter;
-import com.hp.hpl.jena.query.QuerySolution;
-import com.hp.hpl.jena.query.ResultSet;
-import com.hp.hpl.jena.rdf.model.RDFNode;
 
 /**
  * Export SPARQL results as JSON

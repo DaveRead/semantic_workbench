@@ -2,11 +2,11 @@ package com.monead.semantic.workbench;
 
 import java.net.URL;
 
+import org.apache.jena.ontology.OntModel;
+import org.apache.jena.query.Query;
+import org.apache.jena.query.QuerySolution;
 import org.apache.log4j.Logger;
 
-import com.hp.hpl.jena.ontology.OntModel;
-import com.hp.hpl.jena.query.Query;
-import com.hp.hpl.jena.query.QuerySolution;
 import com.monead.semantic.workbench.utilities.ValueFormatter;
 
 /**

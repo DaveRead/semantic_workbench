@@ -2,8 +2,8 @@ package com.monead.semantic.workbench.tree;
 
 import java.util.Comparator;
 
-import com.hp.hpl.jena.rdf.model.Property;
-import com.hp.hpl.jena.rdf.model.Statement;
+import org.apache.jena.rdf.model.Property;
+import org.apache.jena.rdf.model.Statement;
 
 /**
  * Compare two statements for sorting based on the predicate name. Non-anonymous

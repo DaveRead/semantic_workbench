@@ -5,9 +5,8 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.Observable;
 
+import org.apache.jena.ontology.OntModel;
 import org.apache.log4j.Logger;
-
-import com.hp.hpl.jena.ontology.OntModel;
 
 /**
  * Creates a socket for accepting and responding to SPARQL queries. This is a
@@ -165,7 +164,8 @@ public class SparqlServer extends Observable implements Runnable {
     isStarting = true;
     connectionsHandled = 0;
 
-    new Thread(this).start();
+    LOGGER.debug("Starting a thread for the SPARQL server");
+    new Thread(this, "SPARQL-Server").start();
   }
 
   /**

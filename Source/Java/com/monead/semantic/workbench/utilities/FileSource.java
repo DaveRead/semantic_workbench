@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 
-import com.hp.hpl.jena.reasoner.IllegalParameterException;
+import org.apache.jena.reasoner.IllegalParameterException;
 
 /**
  * Wraps the source of a file which may be either a File or URL.
