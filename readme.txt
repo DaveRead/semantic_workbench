@@ -294,6 +294,15 @@ Much of the functionality is in one class
 
 There are no tests created
 
+
+=========
+Licensing
+=========
+This program is released under the GNU Affero General Public License.
+
+See the license.txt file for details.
+
+
 =============================
 Questions, Comments, Feedback
 =============================

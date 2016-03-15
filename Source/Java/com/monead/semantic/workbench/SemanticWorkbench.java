@@ -163,7 +163,7 @@ import com.monead.semantic.workbench.utilities.ValueFormatter;
  * 
  * This program uses Jena to provide the inference support.
  * 
- * Copyright (C) 2010-2015 David S. Read
+ * Copyright (C) 2010-2016 David S. Read
  * 
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU Affero General Public License as published by the Free
@@ -7046,7 +7046,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
 
     slMessage += "David Read, www.monead.com\n\n";
 
-    slMessage += "Copyright (c) 2010-2015\n\n"
+    slMessage += "Copyright (c) 2010-2016\n\n"
         + "This program is free software: you can redistribute it and/or modify "
         + "it under the terms of the GNU Affero General Public License as "
         + "published by the Free Software Foundation, either version 3 of the "
