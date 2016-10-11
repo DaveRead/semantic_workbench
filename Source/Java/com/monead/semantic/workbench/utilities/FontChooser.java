@@ -6,6 +6,7 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Frame;
+import java.awt.GraphicsEnvironment;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
@@ -29,6 +30,7 @@ import javax.swing.event.ChangeListener;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 
+import org.apache.jena.atlas.logging.Log;
 import org.apache.log4j.Logger;
 
 /**
@@ -154,9 +156,10 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
     final Container c = getContentPane();
 
     final JPanel fontPanel = new JPanel();
-    fontName = new JComboBox<String>(new String[] {
-        "TimesRoman", "Helvetica", "Courier"
-    });
+    // fontName = new JComboBox<String>(new String[] {
+    // "TimesRoman", "Helvetica", "Courier"
+    // });
+    fontName = new JComboBox<String>(getAvailableFontNames());
     fontName.setSelectedIndex(1);
     fontName.addActionListener(this);
     fontSize = new JTextField("12", 4);
@@ -194,6 +197,10 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
     previewLabel.setForeground(colorChooser.getColor());
     previewPanel.add(previewLabel, BorderLayout.CENTER);
 
+    // Setup initial state with current foreground color
+    newColor = previewLabel.getForeground();
+    colorChooser.setColor(newColor);
+    
     // Add in the Ok and Cancel buttons for our dialog box
     final JButton okButton = new JButton("Ok");
     okButton.addActionListener(new ActionListener() {
@@ -221,8 +228,20 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
     c.add(previewPanel, BorderLayout.SOUTH);
 
     pack();
-    
+
     GuiUtilities.centerWindow(this, parent);
+  }
+
+  private String[] getAvailableFontNames() {
+    GraphicsEnvironment e = GraphicsEnvironment.getLocalGraphicsEnvironment();
+    Font[] fonts = e.getAllFonts(); // Get the fonts
+    String[] fontNames = new String[fonts.length];
+    for (int index = 0; index < fonts.length; ++index) {
+      fontNames[index] = fonts[index].getFontName();
+      LOGGER.debug("Found system font: " + fontNames[index]);
+    }
+
+    return fontNames;
   }
 
   /**
@@ -258,7 +277,8 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
     fontItalic.setSelected((font.getStyle() & Font.ITALIC) == Font.ITALIC);
 
     for (int index = 0; index < fontName.getItemCount(); ++index) {
-      if (fontName.getItemAt(index).toString().equalsIgnoreCase(font.getName())) {
+      if (fontName.getItemAt(index).toString()
+          .equalsIgnoreCase(font.getName())) {
         fontName.setSelectedIndex(index);
       }
     }
@@ -284,11 +304,15 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
     int size;
 
     try {
-      size = Integer.parseInt(fontSize.getText());
+      String tempFontSize = fontSize.getText().trim();
+      if (tempFontSize.length() > 0) {
+        size = Integer.parseInt(fontSize.getText());
+      } else {
+        size = DEFAULT_FONT_SIZE;
+      }
     } catch (Throwable throwable) {
       size = DEFAULT_FONT_SIZE;
-      System.out.println("Not a legitimate number for the font size");
-      throwable.printStackTrace();
+      LOGGER.warn("Cannot parse request font size", throwable);
     }
 
     // Bold and italic don't work properly in beta 4.
@@ -296,6 +320,8 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
         | (ital ? Font.ITALIC : 0), size);
 
     newFont = f;
+    
+    LOGGER.debug("New font created: " + newFont);
   }
 
   /**
@@ -303,6 +329,8 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
    */
   protected void updatePreviewColor() {
     newColor = colorChooser.getColor();
+
+    LOGGER.debug("New color selected: " + newColor);
 
     showPreview();
   }
@@ -378,6 +406,7 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
    * Close the chooser dialog and save the user's selections.
    */
   public void closeAndSave() {
+    LOGGER.debug("Close and save. Font:" + getNewFont() + " Color:" + getNewColor());
     setVisible(false);
   }
 
@@ -385,6 +414,7 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
    * Close the chooser dialog and discard the user's selections.
    */
   public void closeAndCancel() {
+    LOGGER.debug("Close and cancel");
     newFont = null;
     newColor = null;
     setVisible(false);

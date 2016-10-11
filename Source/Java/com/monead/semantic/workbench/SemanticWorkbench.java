@@ -218,7 +218,7 @@ public class SemanticWorkbench extends JFrame implements Runnable,
   /**
    * The version identifier
    */
-  public static final String VERSION = "02.00.00";
+  public static final String VERSION = "02.00.01";
 
   /**
    * Serial UID
