@@ -20,8 +20,6 @@ import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QueryExecutionFactory;
 import org.apache.jena.query.QuerySolution;
 import org.apache.jena.query.ResultSet;
-import org.apache.jena.update.GraphStore;
-import org.apache.jena.update.GraphStoreFactory;
 import org.apache.jena.update.UpdateAction;
 import org.apache.log4j.Logger;
 
@@ -193,8 +191,7 @@ public class SparqlRunner implements Runnable {
         || query.toLowerCase().contains("insert")) {
       // SPARQL update
       if (remoteUpdatesPermitted) {
-        final GraphStore graphStore = GraphStoreFactory.create(model);
-        UpdateAction.parseExecute(query, graphStore);
+        UpdateAction.parseExecute(query, model);
         returnResults(out, null, null);
       } else {
         returnResults(out, null, "403 Forbidden");

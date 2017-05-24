@@ -30,7 +30,6 @@ import javax.swing.event.ChangeListener;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 
-import org.apache.jena.atlas.logging.Log;
 import org.apache.log4j.Logger;
 
 /**
