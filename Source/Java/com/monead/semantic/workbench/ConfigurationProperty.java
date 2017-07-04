@@ -136,6 +136,11 @@ public enum ConfigurationProperty {
   ENABLE_STRICT_MODE("EnableStrictMode"),
 
   /**
+   * Property file property name: store the last validation mode setting
+   */
+  ENABLE_VALIDATION("EnableValidation"),
+
+  /**
    * Property file property name: store the last SPARQL output format setting
    */
   EXPORT_SPARQL_RESULTS_FORMAT("SparqlResultsExportFormat"),

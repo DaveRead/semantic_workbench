@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -119,6 +120,8 @@ import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.rdf.model.StmtIterator;
+import org.apache.jena.reasoner.ValidityReport;
+import org.apache.jena.reasoner.ValidityReport.Report;
 import org.apache.jena.riot.RiotException;
 import org.apache.jena.riot.web.HttpOp;
 import org.apache.jena.sparql.engine.http.QueryExceptionHTTP;
@@ -221,7 +224,7 @@ public class SemanticWorkbench extends JFrame
   /**
    * The version identifier
    */
-  public static final String VERSION = "02.02.00";
+  public static final String VERSION = "02.02.01";
 
   /**
    * Serial UID
@@ -334,6 +337,10 @@ public class SemanticWorkbench extends JFrame
           "@prefix owl: <http://www.w3.org/2002/07/owl#>.",
           "@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.",
           "@prefix dc: <http://purl.org/dc/elements/1.1/>.", },
+      // JSON-LD
+      {},
+      // RDF/JSON
+      {},
       // SPARQL
       { "prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>",
           "prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>",
@@ -685,6 +692,12 @@ public class SemanticWorkbench extends JFrame
    * checks for appropriateness.)
    */
   private JCheckBoxMenuItem setupEnableStrictMode;
+
+  /**
+   * Enable/disable ontology validity checking. Enabling this may
+   * significantly slow the reasoning process.
+   */
+  private JCheckBoxMenuItem setupEnableValidation;
 
   /**
    * Set the font used for the major interface display widgets
@@ -1157,6 +1170,10 @@ public class SemanticWorkbench extends JFrame
 
     setupEnableStrictMode.setSelected(properties
         .getProperty(ConfigurationProperty.ENABLE_STRICT_MODE.key(), "Y")
+        .toUpperCase().startsWith("Y"));
+
+    setupEnableValidation.setSelected(properties
+        .getProperty(ConfigurationProperty.ENABLE_VALIDATION.key(), "Y")
         .toUpperCase().startsWith("Y"));
 
     filterEnableFilters
@@ -1772,6 +1789,10 @@ public class SemanticWorkbench extends JFrame
 
     properties.setProperty(ConfigurationProperty.ENABLE_STRICT_MODE.key(),
         setupEnableStrictMode.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
+
+    properties.setProperty(ConfigurationProperty.ENABLE_VALIDATION.key(),
+        setupEnableValidation.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
             : DEFAULT_PROPERTY_VALUE_NO);
 
     properties.setProperty(
@@ -2720,6 +2741,11 @@ public class SemanticWorkbench extends JFrame
     setupEnableStrictMode.setSelected(true);
     setupEnableStrictMode.addActionListener(new ReasonerConfigurationChange());
     menu.add(setupEnableStrictMode);
+
+    setupEnableValidation = new JCheckBoxMenuItem("Enable Ontology Validation");
+    setupEnableValidation.setSelected(true);
+    setupEnableValidation.addActionListener(new ReasonerConfigurationChange());
+    menu.add(setupEnableValidation);
 
     menu.addSeparator();
 
@@ -4625,6 +4651,28 @@ public class SemanticWorkbench extends JFrame
           (ReasonerSelection) reasoningLevel.getSelectedItem());
       LOGGER.debug("Begin loading model");
       ontModel.read(inputStream, null, format.toUpperCase());
+
+      if (setupEnableValidation.isSelected()) {
+        LOGGER.debug("Ontology validation is enabled, starting validation");
+        ValidityReport validity = ontModel.validate();
+        if (validity.isValid()) {
+          LOGGER.warn("Validation OK");
+        } else {
+          StringBuffer message = new StringBuffer();
+          message.append("Validation conflicts:\n");
+          LOGGER.fatal("Conflicts");
+          for (Iterator<Report> i = validity.getReports(); i.hasNext();) {
+            String conflict = i.next().toString();
+            message.append("  ");
+            message.append(conflict);
+            message.append('\n');
+            LOGGER.fatal(" - " + conflict);
+          }
+          JOptionPane.showMessageDialog(this, message,
+              "Ontology Validation Error",
+              JOptionPane.ERROR_MESSAGE);
+        }
+      }
 
       LOGGER.debug(reasoningLevel.getSelectedItem().toString()
           + " model load and setup completed");
