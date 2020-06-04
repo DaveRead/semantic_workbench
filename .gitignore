@@ -1,3 +1,6 @@
 *.log
 bin/
 dist/
+.project
+.classpath
+.settings/
