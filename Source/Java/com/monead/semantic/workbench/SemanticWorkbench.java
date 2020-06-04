@@ -89,6 +89,7 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 
 import org.apache.http.auth.AuthScope;
@@ -5224,11 +5225,11 @@ public class SemanticWorkbench extends JFrame
     if (wrapper != null && wrapper instanceof WrapperInstance) {
       final DefaultMutableTreeNode node = (DefaultMutableTreeNode) treeModel
           .getRoot();
-      @SuppressWarnings("unchecked")
-      final Enumeration<DefaultMutableTreeNode> nodeEnumeration = node
+      //@SuppressWarnings("unchecked")
+      final Enumeration<TreeNode> nodeEnumeration = node
           .preorderEnumeration();
       while (nodeEnumeration.hasMoreElements()) {
-        final DefaultMutableTreeNode nextNode = nodeEnumeration.nextElement();
+        final DefaultMutableTreeNode nextNode = (DefaultMutableTreeNode) nodeEnumeration.nextElement();
         if (nextNode.getUserObject() instanceof Wrapper) {
           final Wrapper nodeWrapper = (Wrapper) nextNode.getUserObject();
           if (wrapper.getUuid().equals(nodeWrapper.getUuid())) {
