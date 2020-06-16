@@ -226,7 +226,7 @@ public class SemanticWorkbench extends JFrame
   /**
    * The version identifier
    */
-  public static final String VERSION = "02.02.01";
+  public static final String VERSION = "02.03.00";
 
   /**
    * Serial UID
