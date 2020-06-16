@@ -14,7 +14,8 @@ import javax.swing.UIManager;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableCellRenderer;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * A renderer for SPARQL results. This is used by the JTable to render the
@@ -27,7 +28,7 @@ public class SparqlResultItemRenderer extends JTextArea implements
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(SparqlResultItemRenderer.class);
 
   /**
@@ -134,7 +135,8 @@ public class SparqlResultItemRenderer extends JTextArea implements
         setOpaque(false);
         myImageIcon = resultValue.getImageIcon();
         setText(null);
-        if (resultValue.getImageIcon().getIconHeight() > highestColumnForThisRow) {
+        if (resultValue.getImageIcon()
+            .getIconHeight() > highestColumnForThisRow) {
           highestCol.put(row, resultValue.getImageIcon().getIconHeight());
         }
       } else {

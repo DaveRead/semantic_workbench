@@ -30,7 +30,8 @@ import javax.swing.event.ChangeListener;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * <p>
@@ -70,7 +71,7 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(FontChooser.class);
+  private static final Logger LOGGER = LogManager.getLogger(FontChooser.class);
 
   /**
    * Default font size
@@ -199,7 +200,7 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
     // Setup initial state with current foreground color
     newColor = previewLabel.getForeground();
     colorChooser.setColor(newColor);
-    
+
     // Add in the Ok and Cancel buttons for our dialog box
     final JButton okButton = new JButton("Ok");
     okButton.addActionListener(new ActionListener() {
@@ -319,7 +320,7 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
         | (ital ? Font.ITALIC : 0), size);
 
     newFont = f;
-    
+
     LOGGER.debug("New font created: " + newFont);
   }
 
@@ -405,7 +406,8 @@ public class FontChooser extends JDialog implements Runnable, ActionListener,
    * Close the chooser dialog and save the user's selections.
    */
   public void closeAndSave() {
-    LOGGER.debug("Close and save. Font:" + getNewFont() + " Color:" + getNewColor());
+    LOGGER.debug(
+        "Close and save. Font:" + getNewFont() + " Color:" + getNewColor());
     setVisible(false);
   }
 

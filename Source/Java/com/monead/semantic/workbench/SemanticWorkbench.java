@@ -132,7 +132,8 @@ import org.apache.jena.update.UpdateFactory;
 import org.apache.jena.update.UpdateProcessor;
 import org.apache.jena.update.UpdateRequest;
 import org.apache.jena.util.iterator.ExtendedIterator;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.mindswap.pellet.utils.VersionInfo;
 
 import com.monead.semantic.workbench.images.ImageLibrary;
@@ -308,7 +309,7 @@ public class SemanticWorkbench extends JFrame
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(SemanticWorkbench.class);
 
   /**
@@ -1743,14 +1744,16 @@ public class SemanticWorkbench extends JFrame
     properties.setProperty(
         ConfigurationProperty.SPARQL_DISPLAY_ALLOW_MULTILINE_OUTPUT.key(),
         setupAllowMultilineResultOutput.isSelected()
-            ? DEFAULT_PROPERTY_VALUE_YES : DEFAULT_PROPERTY_VALUE_NO);
+            ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
     properties.setProperty(ConfigurationProperty.SHOW_FQN_NAMESPACES.key(),
         setupOutputFqnNamespaces.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
             : DEFAULT_PROPERTY_VALUE_NO);
     properties.setProperty(
         ConfigurationProperty.SHOW_DATATYPES_ON_LITERALS.key(),
         setupOutputDatatypesForLiterals.isSelected()
-            ? DEFAULT_PROPERTY_VALUE_YES : DEFAULT_PROPERTY_VALUE_NO);
+            ? DEFAULT_PROPERTY_VALUE_YES
+            : DEFAULT_PROPERTY_VALUE_NO);
     properties.setProperty(ConfigurationProperty.FLAG_LITERALS_IN_RESULTS.key(),
         setupOutputFlagLiteralValues.isSelected() ? DEFAULT_PROPERTY_VALUE_YES
             : DEFAULT_PROPERTY_VALUE_NO);
@@ -3817,7 +3820,8 @@ public class SemanticWorkbench extends JFrame
     if (httpExc != null) {
       statusMessage += ": " + "Response Code: " + httpExc.getResponseCode()
           + (httpStatusMessage != null && httpStatusMessage.trim().length() > 0
-              ? " (" + httpStatusMessage + ")" : "");
+              ? " (" + httpStatusMessage + ")"
+              : "");
 
       JOptionPane.showMessageDialog(this,
           alertMessage + "\n\n" + "Response Code: " + httpExc.getResponseCode()
@@ -5225,11 +5229,12 @@ public class SemanticWorkbench extends JFrame
     if (wrapper != null && wrapper instanceof WrapperInstance) {
       final DefaultMutableTreeNode node = (DefaultMutableTreeNode) treeModel
           .getRoot();
-      //@SuppressWarnings("unchecked")
+      // @SuppressWarnings("unchecked")
       final Enumeration<TreeNode> nodeEnumeration = node
           .preorderEnumeration();
       while (nodeEnumeration.hasMoreElements()) {
-        final DefaultMutableTreeNode nextNode = (DefaultMutableTreeNode) nodeEnumeration.nextElement();
+        final DefaultMutableTreeNode nextNode = (DefaultMutableTreeNode) nodeEnumeration
+            .nextElement();
         if (nextNode.getUserObject() instanceof Wrapper) {
           final Wrapper nodeWrapper = (Wrapper) nextNode.getUserObject();
           if (wrapper.getUuid().equals(nodeWrapper.getUuid())) {
@@ -6435,7 +6440,8 @@ public class SemanticWorkbench extends JFrame
     FileWriter out = null;
     String message = "model ("
         + (setupOutputModelTypeAssertionsAndInferences.isSelected()
-            ? "assertions and inferences" : "assertions only")
+            ? "assertions and inferences"
+            : "assertions only")
         + ") to " + modelExportFile;
 
     setStatus("Writing " + message);
@@ -7968,7 +7974,6 @@ public class SemanticWorkbench extends JFrame
    *          The array of input arguments, not used yet
    */
   public static void main(String[] args) {
-    org.apache.log4j.PropertyConfigurator.configure("log4j.properties");
     new SemanticWorkbench();
   }
 }

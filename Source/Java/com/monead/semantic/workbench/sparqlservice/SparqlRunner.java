@@ -21,7 +21,8 @@ import org.apache.jena.query.QueryExecutionFactory;
 import org.apache.jena.query.QuerySolution;
 import org.apache.jena.query.ResultSet;
 import org.apache.jena.update.UpdateAction;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import com.monead.semantic.workbench.SemanticWorkbench;
 
@@ -36,7 +37,7 @@ public class SparqlRunner implements Runnable {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(SparqlRunner.class);
+  private static final Logger LOGGER = LogManager.getLogger(SparqlRunner.class);
 
   /**
    * Maximum number of characters to read from connection at a time
@@ -222,7 +223,7 @@ public class SparqlRunner implements Runnable {
    */
   private void returnResults(PrintWriter out, ResultSet results,
       String httpErrorCodeAndMessage)
-          throws IOException {
+      throws IOException {
     List<String> columns;
     final List<String> columnLabels = new ArrayList<String>();
     QuerySolution solution;

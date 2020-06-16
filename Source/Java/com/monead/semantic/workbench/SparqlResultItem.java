@@ -6,7 +6,8 @@ import java.net.URI;
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * Wraps a singular result (cell, specific row/column) from a SPARQL query. This
@@ -24,7 +25,8 @@ public class SparqlResultItem {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(SparqlResultItem.class);
+  private static final Logger LOGGER = LogManager
+      .getLogger(SparqlResultItem.class);
 
   /**
    * The literal value wrapped by this instance, if applicable
@@ -96,7 +98,8 @@ public class SparqlResultItem {
    *          True if the wrapper should fetch an image accessible at the URI.
    *          If the URI does not point to an image, there is no error
    */
-  public SparqlResultItem(URI pUri, String pDisplayUri, boolean pDownloadImage) {
+  public SparqlResultItem(URI pUri, String pDisplayUri,
+      boolean pDownloadImage) {
     setUri(pUri);
     setDisplayUri(pDisplayUri);
 

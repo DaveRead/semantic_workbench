@@ -7,7 +7,8 @@ import java.util.Map;
 import javax.swing.JTextArea;
 import javax.swing.text.Document;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * Search a JTextArea for specific text and highlight it if found.
@@ -29,7 +30,7 @@ public class TextSearch {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(TextSearch.class);
 
   /**
@@ -165,7 +166,8 @@ public class TextSearch {
   /**
    * Carry out the search
    * 
-   * @param textArea The text area to search
+   * @param textArea
+   *          The text area to search
    * 
    * @return True if matching text was found
    */
@@ -193,7 +195,8 @@ public class TextSearch {
             break;
           }
           // Extract the text from the document
-          final String match = document.getText(position, findLength).toLowerCase();
+          final String match = document.getText(position, findLength)
+              .toLowerCase();
           // Check to see if it matches or request
           if (match.equals(pattern)) {
             found = true;

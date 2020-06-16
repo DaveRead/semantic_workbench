@@ -1,6 +1,7 @@
 package com.monead.semantic.workbench;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import com.monead.semantic.workbench.utilities.GuiUtilities;
 
@@ -22,7 +23,8 @@ import javax.swing.JTextField;
  * 
  * @author David Read
  */
-public class ProxyConfigurationDialog extends JDialog implements ActionListener {
+public class ProxyConfigurationDialog extends JDialog
+    implements ActionListener {
   /**
    * Serial UID
    */
@@ -31,19 +33,19 @@ public class ProxyConfigurationDialog extends JDialog implements ActionListener 
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(ProxyConfigurationDialog.class);
 
   /**
    * The display size of the proxy server input field
    */
   private static final int FIELD_DISPLAY_LENGTH_SERVER = 30;
-  
+
   /**
    * The display size of the proxy port
    */
   private static final int FIELD_DISPLAY_LENGTH_PORT = 5;
-  
+
   /**
    * The proxy server IP or DNS name
    */

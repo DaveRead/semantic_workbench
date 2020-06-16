@@ -14,7 +14,8 @@ import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.rdf.model.StmtIterator;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * A basic table model for reporting the SPARQL results
@@ -26,7 +27,8 @@ public class SparqlTableModel extends AbstractTableModel {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(SparqlTableModel.class);
+  private static final Logger LOGGER = LogManager
+      .getLogger(SparqlTableModel.class);
 
   /**
    * The result rows
@@ -237,7 +239,7 @@ public class SparqlTableModel extends AbstractTableModel {
       }
 
       rows.add(row);
-//      LOGGER.debug("Added row with col count: " + row.size());
+      // LOGGER.debug("Added row with col count: " + row.size());
     }
 
     LOGGER.debug("Total rows in results: " + rows.size());

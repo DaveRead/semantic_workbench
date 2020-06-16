@@ -15,7 +15,8 @@ import javax.management.Notification;
 import javax.management.NotificationEmitter;
 import javax.management.NotificationListener;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * This memory warning system will call the listener when we exceed the
@@ -29,7 +30,7 @@ public class MemoryWarningSystem {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(MemoryWarningSystem.class);
 
   /**
@@ -72,7 +73,7 @@ public class MemoryWarningSystem {
       @Override
       public void handleNotification(Notification n, Object hb) {
         if (n.getType().equals(
-                          MemoryNotificationInfo.MEMORY_THRESHOLD_EXCEEDED)) {
+            MemoryNotificationInfo.MEMORY_THRESHOLD_EXCEEDED)) {
           final long maxMemory = TENURED_GENERATION_POOL.getUsage().getMax();
           final long usedMemory = TENURED_GENERATION_POOL.getUsage().getUsed();
           for (Listener listener : listeners) {
@@ -139,7 +140,7 @@ public class MemoryWarningSystem {
       // I don't know whether this approach is better, or whether
       // we should rather check for the pool name "Tenured Gen"?
       if (pool.getType() == MemoryType.HEAP
-                      && pool.isUsageThresholdSupported()) {
+          && pool.isUsageThresholdSupported()) {
         return pool;
       }
     }

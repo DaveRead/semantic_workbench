@@ -6,7 +6,8 @@ import java.net.SocketException;
 import java.util.Observable;
 
 import org.apache.jena.ontology.OntModel;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * Creates a socket for accepting and responding to SPARQL queries. This is a
@@ -27,7 +28,7 @@ public class SparqlServer extends Observable implements Runnable {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(SparqlServer.class);
+  private static final Logger LOGGER = LogManager.getLogger(SparqlServer.class);
 
   /**
    * Default port number for the SPARQL server

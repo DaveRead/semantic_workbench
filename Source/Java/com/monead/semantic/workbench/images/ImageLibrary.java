@@ -2,7 +2,8 @@ package com.monead.semantic.workbench.images;
 
 import javax.swing.ImageIcon;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * Provide access to images stored within the package.
@@ -122,7 +123,7 @@ public class ImageLibrary {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(ImageLibrary.class);
+  private static final Logger LOGGER = LogManager.getLogger(ImageLibrary.class);
 
   /**
    * A cache of loaded images

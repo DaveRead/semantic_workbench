@@ -1,6 +1,7 @@
 package com.monead.semantic.workbench;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import com.monead.semantic.workbench.utilities.GuiUtilities;
 
@@ -58,7 +59,7 @@ public class SparqlServerConfigurationDialog extends JDialog implements
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(SparqlServerConfigurationDialog.class);
 
   /**

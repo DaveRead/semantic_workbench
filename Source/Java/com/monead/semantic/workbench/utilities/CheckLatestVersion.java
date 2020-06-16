@@ -10,7 +10,8 @@ import java.util.Observable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * Checks for the latest version information. Version identifier string must be
@@ -30,7 +31,8 @@ public class CheckLatestVersion extends Observable implements Runnable {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(CheckLatestVersion.class);
+  private static final Logger LOGGER = LogManager
+      .getLogger(CheckLatestVersion.class);
 
   /**
    * Maximum number of lines in the upgrade message

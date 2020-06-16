@@ -5,7 +5,8 @@ import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * Formats values using XSD type to Java format mappings
@@ -32,7 +33,7 @@ public class ValueFormatter {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(ValueFormatter.class);
 
   /**
@@ -93,8 +94,10 @@ public class ValueFormatter {
   /**
    * Add an XSD to Java Format mapping
    * 
-   * @param xsdType The XSD type (e.g. double)
-   * @param decimalFormatMask The format mask to apply (e.g. #,##0.0)
+   * @param xsdType
+   *          The XSD type (e.g. double)
+   * @param decimalFormatMask
+   *          The format mask to apply (e.g. #,##0.0)
    */
   public static void setFormat(String xsdType, String decimalFormatMask) {
     FORMATS.put(xsdType, new DecimalFormat(decimalFormatMask));

@@ -4,3 +4,4 @@ dist/
 .project
 .classpath
 .settings/
+log/

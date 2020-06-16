@@ -3,7 +3,8 @@ package com.monead.semantic.workbench.queries;
 import java.io.Serializable;
 import java.lang.ref.SoftReference;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import com.monead.semantic.workbench.SparqlTableModel;
 
@@ -48,7 +49,7 @@ public class QueryInfo implements Serializable {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(QueryInfo.class);
+  private static final Logger LOGGER = LogManager.getLogger(QueryInfo.class);
 
   /**
    * The SPARQL query represented by this query info instance

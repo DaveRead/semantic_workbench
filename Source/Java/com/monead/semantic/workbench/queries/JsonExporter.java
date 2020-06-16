@@ -12,7 +12,8 @@ import javax.swing.table.TableModel;
 import org.apache.jena.query.QuerySolution;
 import org.apache.jena.query.ResultSet;
 import org.apache.jena.rdf.model.RDFNode;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
@@ -53,7 +54,7 @@ public class JsonExporter {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(JsonExporter.class);
 
   /**
@@ -107,7 +108,8 @@ public class JsonExporter {
       }
     } catch (IOException ioe) {
       LOGGER.error("Unable to close JSON file: " + file, ioe);
-      throw new IllegalStateException("Unable to close JSON file: " + file, ioe);
+      throw new IllegalStateException("Unable to close JSON file: " + file,
+          ioe);
     }
   }
 

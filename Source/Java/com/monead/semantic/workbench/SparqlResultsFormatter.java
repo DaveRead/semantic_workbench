@@ -5,7 +5,8 @@ import java.net.URL;
 import org.apache.jena.ontology.OntModel;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QuerySolution;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import com.monead.semantic.workbench.utilities.ValueFormatter;
 
@@ -35,12 +36,12 @@ import com.monead.semantic.workbench.utilities.ValueFormatter;
  * </p>
  * <p>
  * </p>
-*/
+ */
 public class SparqlResultsFormatter {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger
+  private static final Logger LOGGER = LogManager
       .getLogger(SparqlResultsFormatter.class);
 
   /**

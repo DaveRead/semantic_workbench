@@ -12,7 +12,8 @@ import java.awt.FlowLayout;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import javax.swing.table.TableColumn;
 import javax.swing.JTable;
@@ -49,7 +50,7 @@ public class GuiUtilities {
   /**
    * Logger Instance
    */
-  private static final Logger LOGGER = Logger.getLogger(GuiUtilities.class);
+  private static final Logger LOGGER = LogManager.getLogger(GuiUtilities.class);
 
   /**
    * Fraction of screen size the restored window dimension may occupy
@@ -91,8 +92,8 @@ public class GuiUtilities {
    * @throws ParseException
    *           If the date cannot be parsed
    */
-  public static Date stringToDate(String dateText, String format) throws
-            ParseException {
+  public static Date stringToDate(String dateText, String format)
+      throws ParseException {
     final SimpleDateFormat fmt = new SimpleDateFormat(format);
     Date date;
 
@@ -207,10 +208,10 @@ public class GuiUtilities {
       column = table.getColumnModel().getColumn(i);
 
       try {
-        comp = table.getTableHeader().getDefaultRenderer().
-              getTableCellRendererComponent(
-                  null, column.getHeaderValue() + "W",
-                  false, false, 0, 0);
+        comp = table.getTableHeader().getDefaultRenderer()
+            .getTableCellRendererComponent(
+                null, column.getHeaderValue() + "W",
+                false, false, 0, 0);
         headerWidth = comp.getPreferredSize().width;
 
         // Periodically the return value from getPreferredSize() is huge
@@ -231,10 +232,10 @@ public class GuiUtilities {
         System.err.println("  The replacement is getDefaultRenderer.");
       }
 
-      comp = table.getDefaultRenderer(model.getColumnClass(i)).
-            getTableCellRendererComponent(
-                table, longValues[i] + "W",
-                false, false, 0, i);
+      comp = table.getDefaultRenderer(model.getColumnClass(i))
+          .getTableCellRendererComponent(
+              table, longValues[i] + "W",
+              false, false, 0, i);
       cellWidth = comp.getPreferredSize().width;
 
       // Periodically the return value from getPreferredSize() is huge
@@ -251,10 +252,10 @@ public class GuiUtilities {
       }
 
       LOGGER.debug("Initializing width of column "
-            + i + ". "
-            + "headerWidth = " + headerWidth
-            + "; cellWidth = " + cellWidth
-            + "; longValue = [" + longValues[i] + "]");
+          + i + ". "
+          + "headerWidth = " + headerWidth
+          + "; cellWidth = " + cellWidth
+          + "; longValue = [" + longValues[i] + "]");
 
       // NOTE: Before Swing 1.1 Beta 2, use setMinWidth instead.
       column.setPreferredWidth(Math.max(headerWidth, cellWidth));
@@ -406,11 +407,16 @@ public class GuiUtilities {
    * If there is no window position or size information then simply assure that
    * the default window size is no more than 90% of screen height and width.
    * 
-   * @param window The window to be adjusted
-   * @param lastHeight The last height of the window
-   * @param lastWidth The last width of the window
-   * @param lastTopX The last top X position of the window
-   * @param lastTopY The last top Y position of the window
+   * @param window
+   *          The window to be adjusted
+   * @param lastHeight
+   *          The last height of the window
+   * @param lastWidth
+   *          The last width of the window
+   * @param lastTopX
+   *          The last top X position of the window
+   * @param lastTopY
+   *          The last top Y position of the window
    */
   public static void windowSizing(Window window, String lastHeight,
       String lastWidth, String lastTopX, String lastTopY) {
@@ -448,12 +454,14 @@ public class GuiUtilities {
       setHeight = previousHeight;
       resizeRequired = true;
     } else {
-      if (screenHeight * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setHeight) {
+      if (screenHeight
+          * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setHeight) {
         setHeight = screenHeight
             * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE;
         resizeRequired = true;
       }
-      if (screenWidth * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setWidth) {
+      if (screenWidth
+          * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE < setWidth) {
         setWidth = screenWidth * MAXIMUM_RESTORE_RELATIVE_WINDOW_TO_SCREEN_SIZE;
         resizeRequired = true;
       }

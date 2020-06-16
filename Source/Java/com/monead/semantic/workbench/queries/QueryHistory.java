@@ -9,7 +9,8 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * Maintain the query history and current location in that history.
@@ -20,7 +21,7 @@ public class QueryHistory implements Serializable {
   /**
    * Logger
    */
-  private static final Logger LOGGER = Logger.getLogger(QueryHistory.class);
+  private static final Logger LOGGER = LogManager.getLogger(QueryHistory.class);
 
   /**
    * Serial UID
